@@ -1,26 +1,18 @@
 package main
 
 import (
-	"io/ioutil"
+	"fmt"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
-	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-type BusArrivalInformation struct {
-	BusStopName    string
-	BusServiceNo   int
-	NextBusMinutes int
-}
-
 var outgoingMessages chan tgbotapi.MessageConfig
-var bot tgbotapi.BotAPI
+var bot *tgbotapi.BotAPI
 
 func init() {
 	outgoingMessages = make(chan tgbotapi.MessageConfig)
@@ -31,7 +23,7 @@ func init() {
 	}
 
 	botToken := os.Getenv("TELEGRAM_API_TOKEN")
-	bot, err := tgbotapi.NewBotAPI(botToken)
+	bot, err = tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,7 +32,7 @@ func init() {
 }
 
 func main() {
-	go handleIncomingMessages()
+	// go handleIncomingMessages()
 
 	go handleStoredJobs()
 
@@ -69,54 +61,40 @@ func handleIncomingMessages() {
 		msg.ReplyToMessageID = update.Message.MessageID
 		outgoingMessages <- msg
 	}
+	// validate bus stop no, bus stop no when registering
 }
 
 func handleStoredJobs() {
-	fetchBusArrivalInformation("43411", "")
-	busArrivalInformation := BusArrivalInformation{BusStopName: "Opp 628", BusServiceNo: 506, NextBusMinutes: 10}
+	// busArrivalInformation := BusArrivalInformation{BusStopName: "Opp 628", BusServiceNo: 506, NextBusMinutes: 10}
+	busArrivalInformation := fetchBusArrivalInformation("43411", "157")
 	textMessage := constructBusArrivalMessage(busArrivalInformation)
 
-	chatID, err := strconv.ParseInt(os.Getenv("CHAT_ID"), 10, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
-	sendOutgoingMessage(chatID, textMessage)
-}
-
-func fetchBusArrivalInformation(busStopCode string, busServiceNo string) BusArrivalInformation {
-	resp, err := http.DefaultClient.Do(buildBusArrivalAPIRequest(busStopCode, busServiceNo))
-	if err != nil {
-		log.Println(err)
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	log.Println(string(body))
-	return BusArrivalInformation{}
-}
-
-func buildBusArrivalAPIRequest(busStopCode string, busServiceNo string) *http.Request {
-	params := url.Values{}
-	params.Add("BusStopCode", busStopCode)
-	params.Add("ServiceNo", busServiceNo)
-
-	url := url.URL{
-		Scheme:   "http",
-		Host:     "datamall2.mytransport.sg",
-		Path:     "ltaodataservice/BusArrivalv2",
-		RawQuery: params.Encode(),
-	}
-
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	ltaToken := os.Getenv("LTA_API_TOKEN")
-	req.Header.Add("AccountKey", ltaToken)
-	return req
+	log.Println(textMessage)
+	/*
+		chatID, err := strconv.ParseInt(os.Getenv("CHAT_ID"), 10, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+		sendOutgoingMessage(chatID, textMessage)
+	*/
 }
 
 func constructBusArrivalMessage(busArrivalInformation BusArrivalInformation) string {
-	return busArrivalInformation.BusStopName + " | " + strconv.Itoa(busArrivalInformation.BusServiceNo) + " in " + strconv.Itoa(busArrivalInformation.NextBusMinutes) + " minutes"
+	stringBuilder := strings.Builder{}
+	stringBuilder.WriteString(busArrivalInformation.BusServiceNo)
+	stringBuilder.WriteString(" @ ")
+	stringBuilder.WriteString(busArrivalInformation.BusStopName)
+	stringBuilder.WriteString(" | ")
+	if busArrivalInformation.NextBusMinutes == 0 {
+		stringBuilder.WriteString("Arr")
+	} else {
+		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes))
+	}
+	stringBuilder.WriteString(" | ")
+	stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes2))
+	stringBuilder.WriteString(" | ")
+	stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes3))
+	return stringBuilder.String()
 }
 
 func sendOutgoingMessage(chatID int64, textMessage string) {
