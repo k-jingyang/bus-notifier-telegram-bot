@@ -12,6 +12,7 @@ import (
 )
 
 var outgoingMessages chan tgbotapi.MessageConfig
+var incomingMessages tgbotapi.UpdatesChannel
 var bot *tgbotapi.BotAPI
 
 func init() {
@@ -29,10 +30,19 @@ func init() {
 	}
 	bot.Debug = true
 	log.Printf("Authorized on account %s", bot.Self.UserName)
+
+	u := tgbotapi.NewUpdate(0)
+	u.Timeout = 60
+	incomingMessages, err = bot.GetUpdatesChan(u)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
 	// go handleIncomingMessages()
+
+	// go retrieveStoredJobs()
 
 	go handleStoredJobs()
 
@@ -43,14 +53,7 @@ func main() {
 }
 
 func handleIncomingMessages() {
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-	updateMsgChannel, err := bot.GetUpdatesChan(u)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for update := range updateMsgChannel {
+	for update := range incomingMessages {
 		if update.Message == nil {
 			continue
 		}
@@ -65,7 +68,8 @@ func handleIncomingMessages() {
 }
 
 func handleStoredJobs() {
-	// busArrivalInformation := BusArrivalInformation{BusStopName: "Opp 628", BusServiceNo: 506, NextBusMinutes: 10}
+
+	// connect to db to retrieve jobs
 	busArrivalInformation := fetchBusArrivalInformation("43411", "157")
 	textMessage := constructBusArrivalMessage(busArrivalInformation)
 
