@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -42,8 +43,6 @@ func init() {
 func main() {
 	// go handleIncomingMessages()
 
-	// go retrieveStoredJobs()
-
 	go handleStoredJobs()
 
 	for outgoingMesage := range outgoingMessages {
@@ -64,12 +63,19 @@ func handleIncomingMessages() {
 		msg.ReplyToMessageID = update.Message.MessageID
 		outgoingMessages <- msg
 	}
+
+	/*
+		busInfoJob := BusInfoJob{"426269144", "43411", "157"}
+		timeToExecute := ScheduledTime{8, 30}
+		addJob(busInfoJob, time.Monday, timeToExecute)
+	*/
 	// validate bus stop no, bus stop no when registering
 }
 
 func handleStoredJobs() {
+	log.Println("Stored jobs on", time.Monday, getJobsForDay(time.Monday))
+	log.Println("Stored jobs on", time.Tuesday, getJobsForDay(time.Tuesday))
 
-	// connect to db to retrieve jobs
 	busArrivalInformation := fetchBusArrivalInformation("43411", "157")
 	textMessage := constructBusArrivalMessage(busArrivalInformation)
 
