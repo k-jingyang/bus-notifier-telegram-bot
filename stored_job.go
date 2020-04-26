@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
@@ -16,6 +17,10 @@ type ScheduledJobs struct {
 type ScheduledTime struct {
 	Hour   int
 	Minute int
+}
+
+func (s *ScheduledTime) toCronExpression(day time.Weekday) string {
+	return fmt.Sprintf("%d %d * * %d", s.Minute, s.Hour, day)
 }
 
 func (s *ScheduledTime) toKey() []byte {
@@ -65,7 +70,7 @@ func addJob(newBusInfoJob BusInfoJob, weekday time.Weekday, timeToExecute Schedu
 			if err != nil {
 				log.Fatal(err)
 			}
-			log.Println("New job", newBusInfoJob)
+			log.Println("New job:", newBusInfoJob)
 			b.Put(key, encBusInfoJobs)
 		} else {
 			existingBusInfoJobs := []BusInfoJob{}
@@ -102,7 +107,6 @@ func getJobsForDay(weekday time.Weekday) []ScheduledJobs {
 	err = db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(weekday.String()))
 		if b == nil {
-			log.Println("No scheduled jobs on", weekday.String())
 			return nil
 		}
 

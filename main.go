@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
-
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/joho/godotenv"
+	"github.com/robfig/cron"
 )
 
 var outgoingMessages chan tgbotapi.MessageConfig
@@ -17,13 +18,10 @@ var incomingMessages tgbotapi.UpdatesChannel
 var bot *tgbotapi.BotAPI
 
 func init() {
-	outgoingMessages = make(chan tgbotapi.MessageConfig)
-
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	botToken := os.Getenv("TELEGRAM_API_TOKEN")
 	bot, err = tgbotapi.NewBotAPI(botToken)
 	if err != nil {
@@ -38,17 +36,26 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	outgoingMessages = make(chan tgbotapi.MessageConfig)
 }
 
 func main() {
-	// go handleIncomingMessages()
+	bootstrapJobsForTesting()
 
+	// go handleIncomingMessages()
 	go handleStoredJobs()
 
 	for outgoingMesage := range outgoingMessages {
 		bot.Send(outgoingMesage)
 		log.Println("SENT")
 	}
+}
+
+func bootstrapJobsForTesting() {
+	myChatID := os.Getenv("CHAT_ID")
+	busInfoJob := BusInfoJob{myChatID, "43411", "157"}
+	timeToExecute := ScheduledTime{17, 20}
+	addJob(busInfoJob, time.Sunday, timeToExecute)
 }
 
 func handleIncomingMessages() {
@@ -73,20 +80,29 @@ func handleIncomingMessages() {
 }
 
 func handleStoredJobs() {
-	log.Println("Stored jobs on", time.Monday, getJobsForDay(time.Monday))
-	log.Println("Stored jobs on", time.Tuesday, getJobsForDay(time.Tuesday))
+	today := time.Now().Weekday()
+	log.Println("Today's stored jobs:", getJobsForDay(today))
 
-	busArrivalInformation := fetchBusArrivalInformation("43411", "157")
+	cronner := cron.New()
+	for _, timeJobs := range getJobsForDay(today) {
+		cronExp := timeJobs.timeToExcuete.toCronExpression(today)
+		cronner.AddFunc(cronExp, func() {
+			for _, busJob := range timeJobs.busInfoJobs {
+				fetchAndPushInfo(busJob)
+			}
+		})
+	}
+	cronner.Start()
+}
+
+func fetchAndPushInfo(busJob BusInfoJob) {
+	busArrivalInformation := fetchBusArrivalInformation(busJob.BusStopCode, busJob.BusServiceNo)
 	textMessage := constructBusArrivalMessage(busArrivalInformation)
-
-	log.Println(textMessage)
-	/*
-		chatID, err := strconv.ParseInt(os.Getenv("CHAT_ID"), 10, 64)
-		if err != nil {
-			log.Fatal(err)
-		}
-		sendOutgoingMessage(chatID, textMessage)
-	*/
+	chatID, err := strconv.ParseInt(busJob.ChatID, 10, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+	sendOutgoingMessage(chatID, textMessage)
 }
 
 func constructBusArrivalMessage(busArrivalInformation BusArrivalInformation) string {
