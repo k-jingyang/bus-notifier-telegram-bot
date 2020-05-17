@@ -41,19 +41,20 @@ func init() {
 }
 
 func main() {
-	bootstrapJobsForTesting()
+	// bootstrapJobsForTesting()
 
-	// go handleIncomingMessages()
+	go handleIncomingMessages()
 	go handleStoredJobs()
 
 	for outgoingMesage := range outgoingMessages {
 		bot.Send(outgoingMesage)
-		log.Println("SENT")
+		fmt.Println("SENT")
 	}
 }
 
 func bootstrapJobsForTesting() {
-	myChatID := os.Getenv("CHAT_ID")
+	myChatIDStr := os.Getenv("CHAT_ID")
+	myChatID, _ := strconv.ParseInt(myChatIDStr, 10, 64)
 	busInfoJob := BusInfoJob{myChatID, "43411", "157"}
 	timeToExecute := ScheduledTime{17, 20}
 	addJob(busInfoJob, time.Sunday, timeToExecute)
@@ -65,20 +66,37 @@ func handleIncomingMessages() {
 		if update.Message == nil {
 			continue
 		}
-
 		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
-		msg.ReplyToMessageID = update.Message.MessageID
-		outgoingMessages <- msg
+		busInfoJob, timeToExecute, dayToExecute := chatMessageToScheduledBusJob(update.Message.Chat.ID, update.Message.Text)
+		addJob(busInfoJob, dayToExecute, timeToExecute)
+
+		replyMessage := fmt.Sprintf("You will be reminded for bus %s at bus stop %s every %s %02d:%02d", busInfoJob.BusServiceNo, busInfoJob.BusStopCode, dayToExecute.String(), timeToExecute.Hour, timeToExecute.Minute)
+		reply := tgbotapi.NewMessage(update.Message.Chat.ID, replyMessage)
+		reply.ReplyToMessageID = update.Message.MessageID
+		outgoingMessages <- reply
 	}
 
 	/*
 		busInfoJob := BusInfoJob{"426269144", "43411", "157"}
 		timeToExecute := ScheduledTime{8, 30}
-		addJob(busInfoJob, time.Monday, timeToExecute)
 	*/
 	// validate bus stop no, bus stop no when registering
+}
+
+func chatMessageToScheduledBusJob(chatID int64, message string) (BusInfoJob, ScheduledTime, time.Weekday) {
+	// Format now is busStopNo,busNo,day[0-6],hour,minute
+	textArr := strings.Split(message, ",")
+
+	busInfoJob := BusInfoJob{ChatID: chatID, BusStopCode: textArr[0], BusServiceNo: textArr[1]}
+
+	weekday, _ := strconv.Atoi(textArr[2])
+
+	hour, _ := strconv.Atoi(textArr[3])
+	minute, _ := strconv.Atoi(textArr[4])
+	scheduledTime := ScheduledTime{Hour: hour, Minute: minute}
+
+	return busInfoJob, scheduledTime, time.Weekday(weekday)
 }
 
 func handleStoredJobs() {
@@ -135,11 +153,7 @@ func buildCronnerFromJobs(jobs []ScheduledJobs, day time.Weekday) *cron.Cron {
 func fetchAndPushInfo(busJob BusInfoJob) {
 	busArrivalInformation := fetchBusArrivalInformation(busJob.BusStopCode, busJob.BusServiceNo)
 	textMessage := constructBusArrivalMessage(busArrivalInformation)
-	chatID, err := strconv.ParseInt(busJob.ChatID, 10, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
-	sendOutgoingMessage(chatID, textMessage)
+	sendOutgoingMessage(busJob.ChatID, textMessage)
 }
 
 func constructBusArrivalMessage(busArrivalInformation BusArrivalInformation) string {

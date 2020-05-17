@@ -43,7 +43,7 @@ func (s *ScheduledTime) fromKey(key []byte) {
 }
 
 type BusInfoJob struct {
-	ChatID       string
+	ChatID       int64
 	BusStopCode  string
 	BusServiceNo string
 }
