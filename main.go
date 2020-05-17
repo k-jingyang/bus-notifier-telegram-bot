@@ -69,19 +69,16 @@ func handleIncomingMessages() {
 		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 		busInfoJob, timeToExecute, dayToExecute := chatMessageToScheduledBusJob(update.Message.Chat.ID, update.Message.Text)
+		// Validate bus stop no, bus stop no when registering
 		addJob(busInfoJob, dayToExecute, timeToExecute)
-
+		if dayToExecute == time.Now().Weekday() {
+			addJobToTodayCronner(cronner, busInfoJob, timeToExecute)
+		}
 		replyMessage := fmt.Sprintf("You will be reminded for bus %s at bus stop %s every %s %02d:%02d", busInfoJob.BusServiceNo, busInfoJob.BusStopCode, dayToExecute.String(), timeToExecute.Hour, timeToExecute.Minute)
 		reply := tgbotapi.NewMessage(update.Message.Chat.ID, replyMessage)
 		reply.ReplyToMessageID = update.Message.MessageID
 		outgoingMessages <- reply
 	}
-
-	/*
-		busInfoJob := BusInfoJob{"426269144", "43411", "157"}
-		timeToExecute := ScheduledTime{8, 30}
-	*/
-	// validate bus stop no, bus stop no when registering
 }
 
 func chatMessageToScheduledBusJob(chatID int64, message string) (BusInfoJob, ScheduledTime, time.Weekday) {
@@ -100,9 +97,6 @@ func chatMessageToScheduledBusJob(chatID int64, message string) (BusInfoJob, Sch
 }
 
 func handleStoredJobs() {
-
-	// how to load new job when user registers
-
 	today := time.Now().Weekday()
 	cronner = buildCronnerFromJobs(getJobsForDay(today), today)
 	cronner.Start()
@@ -115,7 +109,7 @@ func handleStoredJobs() {
 
 	// Daily jobs are loaded at midnight, so that cron does not contain all jobs
 	masterCronner := cron.New()
-	masterCronner.AddFunc("*/2 18 * * *", func() {
+	masterCronner.AddFunc("*0 0 * * *", func() {
 
 		// Debugging
 		log.Print("Old jobs: ")
@@ -124,7 +118,7 @@ func handleStoredJobs() {
 		}
 		cronner.Stop()
 
-		newDay := time.Monday //time.Now().Weekday()
+		newDay := time.Now().Weekday()
 		cronner = buildCronnerFromJobs(getJobsForDay(newDay), newDay)
 		cronner.Start()
 
@@ -148,6 +142,12 @@ func buildCronnerFromJobs(jobs []ScheduledJobs, day time.Weekday) *cron.Cron {
 		})
 	}
 	return cronner
+}
+
+func addJobToTodayCronner(cronner *cron.Cron, busInfoJob BusInfoJob, timeToExecute ScheduledTime) {
+	cronner.AddFunc(timeToExecute.toCronExpression(time.Now().Weekday()), func() {
+		fetchAndPushInfo(busInfoJob)
+	})
 }
 
 func fetchAndPushInfo(busJob BusInfoJob) {
