@@ -16,6 +16,7 @@ import (
 var outgoingMessages chan tgbotapi.MessageConfig
 var incomingMessages tgbotapi.UpdatesChannel
 var bot *tgbotapi.BotAPI
+var cronner *cron.Cron
 
 func init() {
 	err := godotenv.Load()
@@ -56,6 +57,7 @@ func bootstrapJobsForTesting() {
 	busInfoJob := BusInfoJob{myChatID, "43411", "157"}
 	timeToExecute := ScheduledTime{17, 20}
 	addJob(busInfoJob, time.Sunday, timeToExecute)
+	addJob(busInfoJob, time.Monday, ScheduledTime{19, 20})
 }
 
 func handleIncomingMessages() {
@@ -80,19 +82,54 @@ func handleIncomingMessages() {
 }
 
 func handleStoredJobs() {
-	today := time.Now().Weekday()
-	log.Println("Today's stored jobs:", getJobsForDay(today))
 
+	// how to load new job when user registers
+
+	today := time.Now().Weekday()
+	cronner = buildCronnerFromJobs(getJobsForDay(today), today)
+	cronner.Start()
+
+	// Debugging
+	log.Print("Starting jobs: ")
+	for _, entry := range cronner.Entries() {
+		log.Println(entry)
+	}
+
+	// Daily jobs are loaded at midnight, so that cron does not contain all jobs
+	masterCronner := cron.New()
+	masterCronner.AddFunc("*/2 18 * * *", func() {
+
+		// Debugging
+		log.Print("Old jobs: ")
+		for _, entry := range cronner.Entries() {
+			log.Println(entry)
+		}
+		cronner.Stop()
+
+		newDay := time.Monday //time.Now().Weekday()
+		cronner = buildCronnerFromJobs(getJobsForDay(newDay), newDay)
+		cronner.Start()
+
+		// Debugging
+		log.Print("New jobs: ")
+		for _, entry := range cronner.Entries() {
+			log.Println(entry)
+		}
+	})
+	masterCronner.Start()
+}
+
+func buildCronnerFromJobs(jobs []ScheduledJobs, day time.Weekday) *cron.Cron {
 	cronner := cron.New()
-	for _, timeJobs := range getJobsForDay(today) {
-		cronExp := timeJobs.timeToExcuete.toCronExpression(today)
+	for _, timeJobs := range jobs {
+		cronExp := timeJobs.timeToExcuete.toCronExpression(day)
 		cronner.AddFunc(cronExp, func() {
 			for _, busJob := range timeJobs.busInfoJobs {
 				fetchAndPushInfo(busJob)
 			}
 		})
 	}
-	cronner.Start()
+	return cronner
 }
 
 func fetchAndPushInfo(busJob BusInfoJob) {

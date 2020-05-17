@@ -50,7 +50,7 @@ type BusInfoJob struct {
 
 func addJob(newBusInfoJob BusInfoJob, weekday time.Weekday, timeToExecute ScheduledTime) {
 	key := timeToExecute.toKey()
-	log.Println("Time:", string(key))
+	log.Println("Time of new job:", string(key))
 
 	db, err := bolt.Open("my.db", 0600, nil)
 	if err != nil {
