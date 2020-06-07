@@ -61,7 +61,7 @@ func handleRegistration(message *tgbotapi.Message) tgbotapi.MessageConfig {
 		storedUserState.Weekday = time.Weekday(dayInt)
 		storedUserState.State = 3
 		saveUserState(chatID, *storedUserState)
-		reply := tgbotapi.NewMessage(message.Chat.ID, "What time? In (hh:mm)")
+		reply := tgbotapi.NewMessage(message.Chat.ID, "What time? In the format of hh:mm")
 		reply.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
 		return reply
 	}
