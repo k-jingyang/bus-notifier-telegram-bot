@@ -10,8 +10,8 @@ import (
 )
 
 type ScheduledJobs struct {
-	timeToExcuete ScheduledTime
-	busInfoJobs   []BusInfoJob
+	TimeToExecute ScheduledTime
+	BusInfoJobs   []BusInfoJob
 }
 
 type ScheduledTime struct {
