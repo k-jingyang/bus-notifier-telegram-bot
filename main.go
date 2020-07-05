@@ -48,30 +48,28 @@ func main() {
 
 	for outgoingMesage := range outgoingMessages {
 		bot.Send(outgoingMesage)
-		fmt.Println("SENT")
+		fmt.Println("Sent")
 	}
 }
 
 func bootstrapJobsForTesting() {
 	myChatIDStr := os.Getenv("CHAT_ID")
 	myChatID, _ := strconv.ParseInt(myChatIDStr, 10, 64)
-	busInfoJob := BusInfoJob{myChatID, "43411", "157"}
-	timeToExecute := ScheduledTime{17, 20}
+	busInfoJob := busInfoJob{myChatID, "43411", "157"}
+	timeToExecute := scheduledTime{17, 20}
 
 	addJob(busInfoJob, time.Sunday, timeToExecute)
-	addJob(busInfoJob, time.Monday, ScheduledTime{19, 20})
+	addJob(busInfoJob, time.Monday, scheduledTime{19, 20})
 }
 
 func handleIncomingMessages() {
 	for update := range incomingMessages {
-		if update.Message == nil {
+
+		if update.Message == nil && update.CallbackQuery == nil {
 			continue
 		}
 
-		log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
-		outgoingMessages <- handleRegistration(update.Message)
-
+		outgoingMessages <- handleRegistration(update)
 	}
 }
 
@@ -110,7 +108,7 @@ func handleStoredJobs() {
 	masterCronner.Start()
 }
 
-func buildCronnerFromJobs(jobs []ScheduledJobs, day time.Weekday) *cron.Cron {
+func buildCronnerFromJobs(jobs []scheduledJobs, day time.Weekday) *cron.Cron {
 	cronner := cron.New()
 	for _, timeJobs := range jobs {
 		cronExp := timeJobs.TimeToExecute.toCronExpression(day)
@@ -123,13 +121,13 @@ func buildCronnerFromJobs(jobs []ScheduledJobs, day time.Weekday) *cron.Cron {
 	return cronner
 }
 
-func addJobToTodayCronner(cronner *cron.Cron, busInfoJob BusInfoJob, timeToExecute ScheduledTime) {
+func addJobToTodayCronner(cronner *cron.Cron, busInfoJob busInfoJob, timeToExecute scheduledTime) {
 	cronner.AddFunc(timeToExecute.toCronExpression(time.Now().Weekday()), func() {
 		fetchAndPushInfo(busInfoJob)
 	})
 }
 
-func fetchAndPushInfo(busJob BusInfoJob) {
+func fetchAndPushInfo(busJob busInfoJob) {
 	busArrivalInformation := fetchBusArrivalInformation(busJob.BusStopCode, busJob.BusServiceNo)
 	textMessage := constructBusArrivalMessage(busArrivalInformation)
 	sendOutgoingMessage(busJob.ChatID, textMessage)

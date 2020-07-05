@@ -10,23 +10,23 @@ import (
 	"time"
 )
 
-type DataMallPayload struct {
-	Services    []Services
+type dataMallPayload struct {
+	Services    []services
 	BusStopCode string
 }
 
-type Services struct {
+type services struct {
 	ServiceNo string
-	NextBus   NextBus
-	NextBus2  NextBus
-	NextBus3  NextBus
+	nextBus   nextBus
+	NextBus2  nextBus
+	NextBus3  nextBus
 }
 
-type NextBus struct {
+type nextBus struct {
 	EstimatedArrival time.Time
 }
 
-func (nextBus NextBus) getMinutesFromNow() float64 {
+func (nextBus nextBus) getMinutesFromNow() float64 {
 	delta := nextBus.EstimatedArrival.Sub(time.Now()).Minutes()
 	if delta < 1 {
 		return 0
@@ -43,13 +43,13 @@ type BusArrivalInformation struct {
 }
 
 func fetchBusArrivalInformation(busStopCode string, busServiceNo string) BusArrivalInformation {
-	var respPayload DataMallPayload
+	var respPayload dataMallPayload
 	json.Unmarshal(sendBusArrivalAPIRequest(busStopCode, busServiceNo), &respPayload)
 
 	busArrivalInfo := BusArrivalInformation{}
 	busArrivalInfo.BusStopName = respPayload.BusStopCode
 	busArrivalInfo.BusServiceNo = respPayload.Services[0].ServiceNo
-	busArrivalInfo.NextBusMinutes = respPayload.Services[0].NextBus.getMinutesFromNow()
+	busArrivalInfo.NextBusMinutes = respPayload.Services[0].nextBus.getMinutesFromNow()
 	busArrivalInfo.NextBusMinutes2 = respPayload.Services[0].NextBus2.getMinutesFromNow()
 	busArrivalInfo.NextBusMinutes3 = respPayload.Services[0].NextBus3.getMinutesFromNow()
 

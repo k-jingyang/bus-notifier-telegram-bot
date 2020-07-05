@@ -9,21 +9,21 @@ import (
 	"github.com/boltdb/bolt"
 )
 
-type ScheduledJobs struct {
-	TimeToExecute ScheduledTime
-	BusInfoJobs   []BusInfoJob
+type scheduledJobs struct {
+	TimeToExecute scheduledTime
+	BusInfoJobs   []busInfoJob
 }
 
-type ScheduledTime struct {
+type scheduledTime struct {
 	Hour   int
 	Minute int
 }
 
-func (s *ScheduledTime) toCronExpression(day time.Weekday) string {
+func (s *scheduledTime) toCronExpression(day time.Weekday) string {
 	return fmt.Sprintf("%d %d * * %d", s.Minute, s.Hour, day)
 }
 
-func (s *ScheduledTime) toKey() []byte {
+func (s *scheduledTime) toKey() []byte {
 	// Year, Month, Day is arbitrary. Hour and minute are encapsulated inside time.Time to make it sortable.
 	key, err := time.Date(1991, 2, 4, s.Hour, s.Minute, 0, 0, time.Local).MarshalText()
 	if err != nil {
@@ -32,7 +32,7 @@ func (s *ScheduledTime) toKey() []byte {
 	return key
 }
 
-func (s *ScheduledTime) fromKey(key []byte) {
+func (s *scheduledTime) fromKey(key []byte) {
 	var storedTime time.Time
 	err := storedTime.UnmarshalText(key)
 	if err != nil {
@@ -42,13 +42,13 @@ func (s *ScheduledTime) fromKey(key []byte) {
 	s.Minute = storedTime.Minute()
 }
 
-type BusInfoJob struct {
+type busInfoJob struct {
 	ChatID       int64
 	BusStopCode  string
 	BusServiceNo string
 }
 
-func addJob(newBusInfoJob BusInfoJob, weekday time.Weekday, timeToExecute ScheduledTime) {
+func addJob(newBusInfoJob busInfoJob, weekday time.Weekday, timeToExecute scheduledTime) {
 	key := timeToExecute.toKey()
 	log.Println("Time of new job:", string(key))
 
@@ -66,14 +66,14 @@ func addJob(newBusInfoJob BusInfoJob, weekday time.Weekday, timeToExecute Schedu
 
 		storedJobs := b.Get(key)
 		if storedJobs == nil {
-			encBusInfoJobs, err := json.Marshal([]BusInfoJob{newBusInfoJob})
+			encBusInfoJobs, err := json.Marshal([]busInfoJob{newBusInfoJob})
 			if err != nil {
 				log.Fatal(err)
 			}
 			log.Println("New job:", newBusInfoJob)
 			b.Put(key, encBusInfoJobs)
 		} else {
-			existingBusInfoJobs := []BusInfoJob{}
+			existingBusInfoJobs := []busInfoJob{}
 			json.Unmarshal(storedJobs, &existingBusInfoJobs)
 
 			for _, s := range existingBusInfoJobs {
@@ -95,8 +95,8 @@ func addJob(newBusInfoJob BusInfoJob, weekday time.Weekday, timeToExecute Schedu
 	})
 }
 
-func getJobsForDay(weekday time.Weekday) []ScheduledJobs {
-	jobsOnDay := []ScheduledJobs{}
+func getJobsForDay(weekday time.Weekday) []scheduledJobs {
+	jobsOnDay := []scheduledJobs{}
 
 	db, err := bolt.Open("my.db", 0600, nil)
 	if err != nil {
@@ -112,11 +112,11 @@ func getJobsForDay(weekday time.Weekday) []ScheduledJobs {
 
 		c := b.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			storedBusInfoJobs := []BusInfoJob{}
+			storedBusInfoJobs := []busInfoJob{}
 			json.Unmarshal(v, &storedBusInfoJobs)
-			var time ScheduledTime
+			var time scheduledTime
 			time.fromKey(k)
-			jobsAtTime := ScheduledJobs{time, storedBusInfoJobs}
+			jobsAtTime := scheduledJobs{time, storedBusInfoJobs}
 			jobsOnDay = append(jobsOnDay, jobsAtTime)
 		}
 		return nil
