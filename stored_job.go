@@ -9,6 +9,8 @@ import (
 	"github.com/boltdb/bolt"
 )
 
+const db string = "job.db"
+
 type scheduledJobs struct {
 	TimeToExecute scheduledTime
 	BusInfoJobs   []busInfoJob
@@ -52,7 +54,7 @@ func addJob(newBusInfoJob busInfoJob, weekday time.Weekday, timeToExecute schedu
 	key := timeToExecute.toKey()
 	log.Println("Time of new job:", string(key))
 
-	db, err := bolt.Open("my.db", 0600, nil)
+	db, err := bolt.Open(db, 0600, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -98,7 +100,7 @@ func addJob(newBusInfoJob busInfoJob, weekday time.Weekday, timeToExecute schedu
 func getJobsForDay(weekday time.Weekday) []scheduledJobs {
 	jobsOnDay := []scheduledJobs{}
 
-	db, err := bolt.Open("my.db", 0600, nil)
+	db, err := bolt.Open(db, 0600, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
