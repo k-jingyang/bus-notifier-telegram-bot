@@ -13,7 +13,7 @@ import (
 	"github.com/robfig/cron"
 )
 
-var outgoingMessages chan tgbotapi.MessageConfig
+var outgoingMessages chan tgbotapi.Chattable
 var incomingMessages tgbotapi.UpdatesChannel
 var bot *tgbotapi.BotAPI
 var cronner *cron.Cron
@@ -37,7 +37,7 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	outgoingMessages = make(chan tgbotapi.MessageConfig)
+	outgoingMessages = make(chan tgbotapi.Chattable)
 }
 
 func main() {
@@ -55,11 +55,14 @@ func main() {
 func bootstrapJobsForTesting() {
 	myChatIDStr := os.Getenv("CHAT_ID")
 	myChatID, _ := strconv.ParseInt(myChatIDStr, 10, 64)
-	busInfoJob := busInfoJob{myChatID, "43411", "157"}
+	busInfoJob := busInfoJob{myChatID, "43411", "506"}
 	timeToExecute := scheduledTime{17, 20}
 
-	addJob(busInfoJob, time.Sunday, timeToExecute)
-	addJob(busInfoJob, time.Monday, scheduledTime{19, 20})
+	addJob(busInfoJob, time.Monday, timeToExecute)
+	// addJob(busInfoJob, time.Monday, scheduledTime{9, 45})
+	// addJob(busInfoJob, time.Monday, scheduledTime{9, 50})
+	// addJob(busInfoJob, time.Monday, scheduledTime{10, 00})
+
 }
 
 func handleIncomingMessages() {

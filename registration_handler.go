@@ -26,7 +26,7 @@ type userState struct {
 	Days []time.Weekday
 }
 
-func handleRegistration(update tgbotapi.Update) tgbotapi.MessageConfig {
+func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 
 	// Handles inline keyboard when asked for day, this should replace line 88-97
 	if update.CallbackQuery != nil {
@@ -36,12 +36,24 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.MessageConfig {
 			log.Fatal("Get inline query when not asked about day")
 		}
 		dayInt, _ := strconv.Atoi(update.CallbackQuery.Data)
-		storedUserState.Days = append(storedUserState.Days, time.Weekday(dayInt))
-		storedUserState.State = 4
-		saveUserState(chatID, *storedUserState)
-		reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\n Stop me with /exit")
-		reply.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
-		return reply
+
+		// If user doesn't click on Done, store day
+		if dayInt != -1 {
+			storedUserState.Days = append(storedUserState.Days, time.Weekday(dayInt))
+			saveUserState(chatID, *storedUserState)
+			messageID := update.CallbackQuery.Message.MessageID
+			editedMessage := tgbotapi.NewEditMessageText(chatID, messageID, "Which day? \n"+fmt.Sprintf("%s", storedUserState.Days)+"\n Stop me with /exit")
+			editedMessage.ReplyMarkup = buildWeekdayKeyboard()
+			return editedMessage
+
+		} else {
+			storedUserState.State = 4
+			saveUserState(chatID, *storedUserState)
+			reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\n Stop me with /exit")
+			reply.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
+			return reply
+		}
+
 	}
 
 	message := update.Message
@@ -195,7 +207,7 @@ func buildLocationKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	return tgbotapi.NewReplyKeyboard([]tgbotapi.KeyboardButton{tgbotapi.NewKeyboardButtonLocation("Get nearby bus stops")})
 }
 
-func buildWeekdayKeyboard() tgbotapi.InlineKeyboardMarkup {
+func buildWeekdayKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	var weekdayKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Mon", "1"),
@@ -208,5 +220,5 @@ func buildWeekdayKeyboard() tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("Done", "-1"),
 		),
 	)
-	return weekdayKeyboard
+	return &weekdayKeyboard
 }
