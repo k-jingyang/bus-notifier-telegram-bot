@@ -23,7 +23,7 @@ type userState struct {
 	State int
 	busInfoJob
 	scheduledTime
-	time.Weekday
+	Days []time.Weekday
 }
 
 func handleRegistration(update tgbotapi.Update) tgbotapi.MessageConfig {
@@ -36,7 +36,7 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.MessageConfig {
 			log.Fatal("Get inline query when not asked about day")
 		}
 		dayInt, _ := strconv.Atoi(update.CallbackQuery.Data)
-		storedUserState.Weekday = time.Weekday(dayInt)
+		storedUserState.Days = append(storedUserState.Days, time.Weekday(dayInt))
 		storedUserState.State = 4
 		saveUserState(chatID, *storedUserState)
 		reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\n Stop me with /exit")
@@ -88,7 +88,7 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.MessageConfig {
 	if storedUserState.State == 3 {
 		// TODO: Validate day
 		dayInt, _ := strconv.Atoi(message.Text)
-		storedUserState.Weekday = time.Weekday(dayInt)
+		storedUserState.Days = append(storedUserState.Days, time.Weekday(dayInt))
 		storedUserState.State = 4
 		saveUserState(chatID, *storedUserState)
 		reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\n Stop me with /exit")
@@ -101,12 +101,15 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.MessageConfig {
 		hour, _ := strconv.Atoi(textArr[0])
 		minute, _ := strconv.Atoi(textArr[1])
 		storedUserState.scheduledTime = scheduledTime{Hour: hour, Minute: minute}
-		busInfoJob, dayToExecute, timeToExecute := storedUserState.busInfoJob, storedUserState.Weekday, storedUserState.scheduledTime
-		addJob(busInfoJob, dayToExecute, timeToExecute)
-		if dayToExecute == time.Now().Weekday() {
-			addJobToTodayCronner(cronner, busInfoJob, timeToExecute)
+		for _, day := range storedUserState.Days {
+			busInfoJob, dayToExecute, timeToExecute := storedUserState.busInfoJob, day, storedUserState.scheduledTime
+			addJob(busInfoJob, dayToExecute, timeToExecute)
+			if dayToExecute == time.Now().Weekday() {
+				addJobToTodayCronner(cronner, busInfoJob, timeToExecute)
+			}
 		}
-		replyMessage := fmt.Sprintf("You will be reminded for bus %s at bus stop %s every %s %02d:%02d", busInfoJob.BusServiceNo, busInfoJob.BusStopCode, dayToExecute.String(), timeToExecute.Hour, timeToExecute.Minute)
+
+		replyMessage := fmt.Sprintf("You will be reminded for bus %s at bus stop %s every %s %02d:%02d", storedUserState.BusServiceNo, storedUserState.BusStopCode, storedUserState.Days, storedUserState.Hour, storedUserState.Minute)
 		reply := tgbotapi.NewMessage(chatID, replyMessage)
 		reply.ReplyToMessageID = message.MessageID
 		deleteUserState(chatID)
@@ -202,6 +205,7 @@ func buildWeekdayKeyboard() tgbotapi.InlineKeyboardMarkup {
 			tgbotapi.NewInlineKeyboardButtonData("Fri", "5"),
 			tgbotapi.NewInlineKeyboardButtonData("Sat", "6"),
 			tgbotapi.NewInlineKeyboardButtonData("Sun", "0"),
+			tgbotapi.NewInlineKeyboardButtonData("Done", "-1"),
 		),
 	)
 	return weekdayKeyboard
