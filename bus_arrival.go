@@ -28,12 +28,11 @@ type nextBus struct {
 
 // Returns negative if arrival time is unknown
 func (nextBus nextBus) getMinutesFromNow() float64 {
+	if nextBus.EstimatedArrival.IsZero() {
+		return -1
+	}
 	delta := nextBus.EstimatedArrival.Sub(time.Now()).Minutes()
 	if delta < 1 {
-		// delta < 0 when there's no estimated arrival time
-		if delta < 0 {
-			return -1
-		}
 		return 0
 	}
 	return delta
