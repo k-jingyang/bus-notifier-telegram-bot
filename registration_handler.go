@@ -28,36 +28,19 @@ type userState struct {
 
 func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 
-	// Handles inline keyboard when asked for day, this should replace line 88-97
-	if update.CallbackQuery != nil {
-		chatID := update.CallbackQuery.Message.Chat.ID
-		storedUserState := getUserState(chatID)
-		if storedUserState.State != 3 {
-			log.Fatal("Get inline query when not asked about day")
-		}
-		dayInt, _ := strconv.Atoi(update.CallbackQuery.Data)
-
-		// If user doesn't click on Done, store day
-		if dayInt != -1 {
-			storedUserState.Days = append(storedUserState.Days, time.Weekday(dayInt))
-			saveUserState(chatID, *storedUserState)
-			messageID := update.CallbackQuery.Message.MessageID
-			editedMessage := tgbotapi.NewEditMessageText(chatID, messageID, "Which day? \n"+fmt.Sprintf("%s", storedUserState.Days)+"\n Stop me with /exit")
-			editedMessage.ReplyMarkup = buildWeekdayKeyboard()
-			return editedMessage
-
-		} else {
-			storedUserState.State = 4
-			saveUserState(chatID, *storedUserState)
-			reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\n Stop me with /exit")
-			reply.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
-			return reply
-		}
-
+	if update.CallbackQuery == nil && update.Message == nil {
+		log.Fatalln("Both cannot be nil at the same time")
 	}
 
+	var chatID int64
+	if update.CallbackQuery != nil {
+		chatID = update.CallbackQuery.Message.Chat.ID
+	} else {
+		chatID = update.Message.Chat.ID
+	}
+	storedUserState := getUserState(chatID)
+
 	message := update.Message
-	chatID := message.Chat.ID
 
 	// Exits the registration process
 	if message.IsCommand() && message.Command() == "exit" {
@@ -65,8 +48,6 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 		reply := tgbotapi.NewMessage(message.Chat.ID, "Okay")
 		return reply
 	}
-
-	storedUserState := getUserState(chatID)
 
 	// If user is new
 	if storedUserState == nil {
@@ -98,14 +79,26 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 		return reply
 	}
 	if storedUserState.State == 3 {
-		// TODO: Validate day
-		dayInt, _ := strconv.Atoi(message.Text)
-		storedUserState.Days = append(storedUserState.Days, time.Weekday(dayInt))
-		storedUserState.State = 4
-		saveUserState(chatID, *storedUserState)
-		reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\n Stop me with /exit")
-		reply.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
-		return reply
+		if update.CallbackQuery != nil {
+			dayInt, _ := strconv.Atoi(update.CallbackQuery.Data)
+
+			// If user doesn't click on Done, store day
+			if dayInt != -1 {
+				storedUserState.Days = append(storedUserState.Days, time.Weekday(dayInt))
+				saveUserState(chatID, *storedUserState)
+				messageID := update.CallbackQuery.Message.MessageID
+				editedMessage := tgbotapi.NewEditMessageText(chatID, messageID, "Which day? \n"+fmt.Sprintf("%s", storedUserState.Days)+"\n Stop me with /exit")
+				editedMessage.ReplyMarkup = buildWeekdayKeyboard()
+				return editedMessage
+			} else {
+				storedUserState.State = 4
+				saveUserState(chatID, *storedUserState)
+				reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\n Stop me with /exit")
+				reply.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
+				return reply
+			}
+		}
+		// Reply with currently selected days
 	}
 	if storedUserState.State == 4 {
 		// TODO: Validate time
