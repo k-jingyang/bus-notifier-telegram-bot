@@ -136,7 +136,7 @@ func fetchAndPushInfo(busJob busInfoJob) {
 	sendOutgoingMessage(busJob.ChatID, textMessage)
 }
 
-func constructBusArrivalMessage(busArrivalInformation BusArrivalInformation) string {
+func constructBusArrivalMessage(busArrivalInformation busArrivalInformation) string {
 	stringBuilder := strings.Builder{}
 	stringBuilder.WriteString(busArrivalInformation.BusServiceNo)
 	stringBuilder.WriteString(" @ ")
@@ -147,10 +147,14 @@ func constructBusArrivalMessage(busArrivalInformation BusArrivalInformation) str
 	} else {
 		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes))
 	}
-	stringBuilder.WriteString(" | ")
-	stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes2))
-	stringBuilder.WriteString(" | ")
-	stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes3))
+	if busArrivalInformation.NextBusMinutes2 > 0 {
+		stringBuilder.WriteString(" | ")
+		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes2))
+	}
+	if busArrivalInformation.NextBusMinutes2 > 0 {
+		stringBuilder.WriteString(" | ")
+		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes3))
+	}
 	return stringBuilder.String()
 }
 

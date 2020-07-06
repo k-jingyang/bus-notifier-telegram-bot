@@ -17,7 +17,7 @@ type dataMallPayload struct {
 
 type services struct {
 	ServiceNo string
-	nextBus   nextBus
+	NextBus   nextBus
 	NextBus2  nextBus
 	NextBus3  nextBus
 }
@@ -26,15 +26,22 @@ type nextBus struct {
 	EstimatedArrival time.Time
 }
 
+// Returns negative if arrival time is unknown
 func (nextBus nextBus) getMinutesFromNow() float64 {
 	delta := nextBus.EstimatedArrival.Sub(time.Now()).Minutes()
 	if delta < 1 {
+		// delta < 0 when there's no estimated arrival time
+		if delta < 0 {
+			return -1
+		}
 		return 0
 	}
 	return delta
 }
 
-type BusArrivalInformation struct {
+// NextBusMinutes, NextBusMinutes2, NextBusMinutes3 will contain negative value
+// if arrival information is not available
+type busArrivalInformation struct {
 	BusStopName     string
 	BusServiceNo    string
 	NextBusMinutes  float64
@@ -42,14 +49,14 @@ type BusArrivalInformation struct {
 	NextBusMinutes3 float64
 }
 
-func fetchBusArrivalInformation(busStopCode string, busServiceNo string) BusArrivalInformation {
+func fetchBusArrivalInformation(busStopCode string, busServiceNo string) busArrivalInformation {
 	var respPayload dataMallPayload
 	json.Unmarshal(sendBusArrivalAPIRequest(busStopCode, busServiceNo), &respPayload)
 
-	busArrivalInfo := BusArrivalInformation{}
+	busArrivalInfo := busArrivalInformation{}
 	busArrivalInfo.BusStopName = respPayload.BusStopCode
 	busArrivalInfo.BusServiceNo = respPayload.Services[0].ServiceNo
-	busArrivalInfo.NextBusMinutes = respPayload.Services[0].nextBus.getMinutesFromNow()
+	busArrivalInfo.NextBusMinutes = respPayload.Services[0].NextBus.getMinutesFromNow()
 	busArrivalInfo.NextBusMinutes2 = respPayload.Services[0].NextBus2.getMinutesFromNow()
 	busArrivalInfo.NextBusMinutes3 = respPayload.Services[0].NextBus3.getMinutesFromNow()
 
