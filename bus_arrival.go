@@ -41,7 +41,7 @@ func (nextBus nextBus) getMinutesFromNow() float64 {
 // NextBusMinutes, NextBusMinutes2, NextBusMinutes3 will contain negative value
 // if arrival information is not available
 type busArrivalInformation struct {
-	BusStopName     string
+	BusStopCode     string
 	BusServiceNo    string
 	NextBusMinutes  float64
 	NextBusMinutes2 float64
@@ -53,7 +53,7 @@ func fetchBusArrivalInformation(busStopCode string, busServiceNo string) busArri
 	json.Unmarshal(sendBusArrivalAPIRequest(busStopCode, busServiceNo), &respPayload)
 
 	busArrivalInfo := busArrivalInformation{}
-	busArrivalInfo.BusStopName = respPayload.BusStopCode
+	busArrivalInfo.BusStopCode = respPayload.BusStopCode
 	busArrivalInfo.BusServiceNo = respPayload.Services[0].ServiceNo
 	busArrivalInfo.NextBusMinutes = respPayload.Services[0].NextBus.getMinutesFromNow()
 	busArrivalInfo.NextBusMinutes2 = respPayload.Services[0].NextBus2.getMinutesFromNow()
