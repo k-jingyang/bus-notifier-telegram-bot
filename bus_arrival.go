@@ -86,7 +86,7 @@ func buildBusArrivalAPIRequest(busStopCode string, busServiceNo string) *http.Re
 
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	ltaToken := os.Getenv("LTA_API_TOKEN")
 	req.Header.Add("AccountKey", ltaToken)

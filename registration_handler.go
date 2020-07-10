@@ -62,12 +62,17 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 		}
 	}
 	if storedUserState.State == 1 {
-		// TODO: Validate bus number
-		storedUserState.BusServiceNo = message.Text
-		storedUserState.State = 2
-		saveUserState(chatID, *storedUserState)
-		reply := tgbotapi.NewMessage(chatID, "Which bus stop? \n\n Stop me with /exit")
-		return reply
+		if busServiceLookUp[message.Text] {
+			busServiceNo := message.Text
+			storedUserState.BusServiceNo = busServiceNo
+			storedUserState.State = 2
+			saveUserState(chatID, *storedUserState)
+			reply := tgbotapi.NewMessage(chatID, "Which bus stop? \n\n Stop me with /exit")
+			return reply
+		} else {
+			reply := tgbotapi.NewMessage(chatID, "Invalid bus, please try again \n\n Stop me with /exit")
+			return reply
+		}
 	}
 	if storedUserState.State == 2 {
 		// TODO: Validate bus stop number, and check if said bus number exists in this bus stop
@@ -110,7 +115,7 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 			busInfoJob, dayToExecute, timeToExecute := storedUserState.busInfoJob, day, storedUserState.scheduledTime
 			addJob(busInfoJob, dayToExecute, timeToExecute)
 			if dayToExecute == time.Now().Weekday() {
-				addJobToTodayCronner(cronner, busInfoJob, timeToExecute)
+				addJobToTodayCronner(todayCronner, busInfoJob, timeToExecute)
 			}
 		}
 
@@ -130,7 +135,7 @@ func getUserState(chatID int64) *userState {
 
 	db, err := bolt.Open("user_state.db", 0600, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	defer db.Close()
 
@@ -161,14 +166,14 @@ func saveUserState(chatID int64, userState userState) {
 
 	db, err := bolt.Open("user_state.db", 0600, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	defer db.Close()
 
 	db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte("states"))
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 
 		encUserState, err := json.Marshal(userState)
@@ -182,14 +187,14 @@ func deleteUserState(chatID int64) {
 
 	db, err := bolt.Open("user_state.db", 0600, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	defer db.Close()
 
 	db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("states"))
 		if b == nil {
-			log.Fatal("Bucket should exist but doesn't exist")
+			log.Fatalln("Bucket should exist but doesn't exist")
 		}
 		b.Delete(key)
 		return nil

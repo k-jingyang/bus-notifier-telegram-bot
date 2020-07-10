@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
@@ -16,17 +17,18 @@ import (
 var outgoingMessages chan tgbotapi.Chattable
 var incomingMessages tgbotapi.UpdatesChannel
 var bot *tgbotapi.BotAPI
-var cronner *cron.Cron
+var todayCronner *cron.Cron
+var busServiceLookUp map[string]bool
 
 func init() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	botToken := os.Getenv("TELEGRAM_API_TOKEN")
 	bot, err = tgbotapi.NewBotAPI(botToken)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	bot.Debug = true
 	log.Printf("Authorized on account %s", bot.Self.UserName)
@@ -35,9 +37,28 @@ func init() {
 	u.Timeout = 60
 	incomingMessages, err = bot.GetUpdatesChan(u)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	outgoingMessages = make(chan tgbotapi.Chattable)
+	initBusServiceLookUp()
+}
+
+func initBusServiceLookUp() {
+	busServiceLookUp = make(map[string]bool)
+
+	file, err := os.Open("bus_service.txt")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		busServiceLookUp[scanner.Text()] = true
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalln(err)
+	}
 }
 
 func main() {
@@ -78,12 +99,12 @@ func handleIncomingMessages() {
 
 func handleStoredJobs() {
 	today := time.Now().Weekday()
-	cronner = buildCronnerFromJobs(getJobsForDay(today), today)
-	cronner.Start()
+	todayCronner = buildCronnerFromJobs(getJobsForDay(today), today)
+	todayCronner.Start()
 
 	// Debugging
 	log.Print("Starting jobs: ")
-	for _, entry := range cronner.Entries() {
+	for _, entry := range todayCronner.Entries() {
 		log.Println(entry)
 	}
 
@@ -93,18 +114,18 @@ func handleStoredJobs() {
 
 		// Debugging
 		log.Print("Old jobs: ")
-		for _, entry := range cronner.Entries() {
+		for _, entry := range todayCronner.Entries() {
 			log.Println(entry)
 		}
-		cronner.Stop()
+		todayCronner.Stop()
 
 		newDay := time.Now().Weekday()
-		cronner = buildCronnerFromJobs(getJobsForDay(newDay), newDay)
-		cronner.Start()
+		todayCronner = buildCronnerFromJobs(getJobsForDay(newDay), newDay)
+		todayCronner.Start()
 
 		// Debugging
 		log.Print("New jobs: ")
-		for _, entry := range cronner.Entries() {
+		for _, entry := range todayCronner.Entries() {
 			log.Println(entry)
 		}
 	})
@@ -140,7 +161,7 @@ func constructBusArrivalMessage(busArrivalInformation busArrivalInformation) str
 	stringBuilder := strings.Builder{}
 	stringBuilder.WriteString(busArrivalInformation.BusServiceNo)
 	stringBuilder.WriteString(" @ ")
-	stringBuilder.WriteString(busArrivalInformation.BusStopName)
+	stringBuilder.WriteString(busArrivalInformation.BusStopCode)
 	stringBuilder.WriteString(" | ")
 	if busArrivalInformation.NextBusMinutes == 0 {
 		stringBuilder.WriteString("Arr")

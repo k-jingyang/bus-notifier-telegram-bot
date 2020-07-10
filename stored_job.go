@@ -29,7 +29,7 @@ func (s *scheduledTime) toKey() []byte {
 	// Year, Month, Day is arbitrary. Hour and minute are encapsulated inside time.Time to make it sortable.
 	key, err := time.Date(1991, 2, 4, s.Hour, s.Minute, 0, 0, time.Local).MarshalText()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	return key
 }
@@ -38,7 +38,7 @@ func (s *scheduledTime) fromKey(key []byte) {
 	var storedTime time.Time
 	err := storedTime.UnmarshalText(key)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	s.Hour = storedTime.Hour()
 	s.Minute = storedTime.Minute()
@@ -56,21 +56,21 @@ func addJob(newBusInfoJob busInfoJob, weekday time.Weekday, timeToExecute schedu
 
 	db, err := bolt.Open(db, 0600, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	defer db.Close()
 
 	db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte(weekday.String()))
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalln(err)
 		}
 
 		storedJobs := b.Get(key)
 		if storedJobs == nil {
 			encBusInfoJobs, err := json.Marshal([]busInfoJob{newBusInfoJob})
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalln(err)
 			}
 			log.Println("New job:", newBusInfoJob)
 			b.Put(key, encBusInfoJobs)
@@ -86,7 +86,7 @@ func addJob(newBusInfoJob busInfoJob, weekday time.Weekday, timeToExecute schedu
 			}
 			encBusInfoJobs, err := json.Marshal(append(existingBusInfoJobs, newBusInfoJob))
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalln(err)
 			}
 
 			log.Println("Adding to existing jobs", append(existingBusInfoJobs, newBusInfoJob))
@@ -102,7 +102,7 @@ func getJobsForDay(weekday time.Weekday) []scheduledJobs {
 
 	db, err := bolt.Open(db, 0600, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 	defer db.Close()
 
@@ -125,7 +125,7 @@ func getJobsForDay(weekday time.Weekday) []scheduledJobs {
 	})
 
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
 	return jobsOnDay
