@@ -38,7 +38,6 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 	} else {
 		chatID = update.Message.Chat.ID
 	}
-	storedUserState := getUserState(chatID)
 
 	message := update.Message
 
@@ -49,8 +48,8 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 		return reply
 	}
 
-	// If user is new
-	if storedUserState == nil {
+	switch storedUserState := getUserState(chatID); storedUserState.State {
+	case 0:
 		if message.IsCommand() && message.Command() == "register" {
 			userState := userState{State: 1}
 			saveUserState(chatID, userState)
@@ -60,8 +59,7 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 			reply := tgbotapi.NewMessage(chatID, "Start by sending me /register")
 			return reply
 		}
-	}
-	if storedUserState.State == 1 {
+	case 1:
 		if busServiceLookUp[message.Text] {
 			busServiceNo := message.Text
 			storedUserState.BusServiceNo = busServiceNo
@@ -73,8 +71,7 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 			reply := tgbotapi.NewMessage(chatID, "Invalid bus, please try again \n\n Stop me with /exit")
 			return reply
 		}
-	}
-	if storedUserState.State == 2 {
+	case 2:
 		// TODO: Validate bus stop number, and check if said bus number exists in this bus stop
 		storedUserState.BusStopCode = message.Text
 		storedUserState.State = 3
@@ -82,8 +79,7 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 		reply := tgbotapi.NewMessage(chatID, "Which day? \n\n Stop me with /exit")
 		reply.ReplyMarkup = buildWeekdayKeyboard()
 		return reply
-	}
-	if storedUserState.State == 3 {
+	case 3:
 		if update.CallbackQuery != nil {
 			dayInt, _ := strconv.Atoi(update.CallbackQuery.Data)
 
@@ -103,9 +99,7 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 				return reply
 			}
 		}
-		// Reply with currently selected days
-	}
-	if storedUserState.State == 4 {
+	case 4:
 		// TODO: Validate time
 		textArr := strings.Split(message.Text, ":")
 		hour, _ := strconv.Atoi(textArr[0])
