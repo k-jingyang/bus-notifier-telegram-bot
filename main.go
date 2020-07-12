@@ -46,7 +46,7 @@ func init() {
 func initBusServiceLookUp() {
 	busServiceLookUp = make(map[string]bool)
 
-	file, err := os.Open("bus_service.txt")
+	file, err := os.Open("bus_services.txt")
 	if err != nil {
 		log.Fatalln(err)
 	}
