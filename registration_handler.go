@@ -23,7 +23,21 @@ type userState struct {
 	State int
 	busInfoJob
 	scheduledTime
-	Days []time.Weekday
+	SelectedDays map[time.Weekday]bool
+}
+
+func (userState *userState) toggleDay(day time.Weekday) {
+	userState.SelectedDays[day] = !userState.SelectedDays[day]
+}
+
+func (userState *userState) getSelectedDays() []time.Weekday {
+	selectedDays := []time.Weekday{}
+	for k, v := range userState.SelectedDays {
+		if v {
+			selectedDays = append(selectedDays, k)
+		}
+	}
+	return selectedDays
 }
 
 func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
@@ -42,16 +56,18 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 	message := update.Message
 
 	// Exits the registration process
-	if message.IsCommand() && message.Command() == "exit" {
+	if message != nil && message.IsCommand() && message.Command() == "exit" {
 		deleteUserState(chatID)
 		reply := tgbotapi.NewMessage(message.Chat.ID, "Okay")
 		return reply
 	}
 
-	switch storedUserState := getUserState(chatID); storedUserState.State {
-	case 0:
+	storedUserState := getUserState(chatID)
+
+	// If db does not have this record
+	if storedUserState == nil {
 		if message.IsCommand() && message.Command() == "register" {
-			userState := userState{State: 1}
+			userState := userState{State: 1, SelectedDays: make(map[time.Weekday]bool)}
 			saveUserState(chatID, userState)
 			reply := tgbotapi.NewMessage(chatID, "Which bus would you like to be alerted for?")
 			return reply
@@ -59,6 +75,9 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 			reply := tgbotapi.NewMessage(chatID, "Start by sending me /register")
 			return reply
 		}
+	}
+
+	switch storedUserState.State {
 	case 1:
 		if busServiceLookUp[message.Text] {
 			busServiceNo := message.Text
@@ -82,14 +101,28 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 	case 3:
 		if update.CallbackQuery != nil {
 			dayInt, _ := strconv.Atoi(update.CallbackQuery.Data)
-
 			// If user doesn't click on Done, store day
 			if dayInt != -1 {
-				storedUserState.Days = append(storedUserState.Days, time.Weekday(dayInt))
+				storedUserState.toggleDay(time.Weekday(dayInt))
 				saveUserState(chatID, *storedUserState)
+
+				stringBuilder := strings.Builder{}
+				stringBuilder.WriteString("Which day? \n Selected: ")
+				if len(storedUserState.getSelectedDays()) == 0 {
+					stringBuilder.WriteString("None")
+				} else {
+					selectedDays := storedUserState.getSelectedDays()
+					stringBuilder.WriteString(joinDaysString(selectedDays))
+				}
+				stringBuilder.WriteString("\n Stop me with /exit")
+
 				messageID := update.CallbackQuery.Message.MessageID
-				editedMessage := tgbotapi.NewEditMessageText(chatID, messageID, "Which day? \n"+fmt.Sprintf("%s", storedUserState.Days)+"\n Stop me with /exit")
+				editedMessage := tgbotapi.NewEditMessageText(chatID, messageID, stringBuilder.String())
 				editedMessage.ReplyMarkup = buildWeekdayKeyboard()
+
+				// TODO: Need to send this back via AnswerCallbackQuery, so that button stops the loading
+				// callBackID := update.CallbackQuery.ID
+				// callbackQueryResponse := tgbotapi.NewCallback(callBackID, "")
 				return editedMessage
 			} else {
 				storedUserState.State = 4
@@ -105,7 +138,7 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 		hour, _ := strconv.Atoi(textArr[0])
 		minute, _ := strconv.Atoi(textArr[1])
 		storedUserState.scheduledTime = scheduledTime{Hour: hour, Minute: minute}
-		for _, day := range storedUserState.Days {
+		for _, day := range storedUserState.getSelectedDays() {
 			busInfoJob, dayToExecute, timeToExecute := storedUserState.busInfoJob, day, storedUserState.scheduledTime
 			addJob(busInfoJob, dayToExecute, timeToExecute)
 			if dayToExecute == time.Now().Weekday() {
@@ -113,7 +146,12 @@ func handleRegistration(update tgbotapi.Update) tgbotapi.Chattable {
 			}
 		}
 
-		replyMessage := fmt.Sprintf("You will be reminded for bus %s at bus stop %s every %s %02d:%02d", storedUserState.BusServiceNo, storedUserState.BusStopCode, storedUserState.Days, storedUserState.Hour, storedUserState.Minute)
+		replyMessage := fmt.Sprintf("You will be reminded for bus %s at bus stop %s every %s %02d:%02d",
+			storedUserState.BusServiceNo,
+			storedUserState.BusStopCode,
+			joinDaysString(storedUserState.getSelectedDays()),
+			storedUserState.Hour,
+			storedUserState.Minute)
 		reply := tgbotapi.NewMessage(chatID, replyMessage)
 		reply.ReplyToMessageID = message.MessageID
 		deleteUserState(chatID)
@@ -202,15 +240,26 @@ func buildLocationKeyboard() tgbotapi.ReplyKeyboardMarkup {
 func buildWeekdayKeyboard() *tgbotapi.InlineKeyboardMarkup {
 	var weekdayKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Mon", "1"),
-			tgbotapi.NewInlineKeyboardButtonData("Tues", "2"),
-			tgbotapi.NewInlineKeyboardButtonData("Wed", "3"),
-			tgbotapi.NewInlineKeyboardButtonData("Thur", "4"),
-			tgbotapi.NewInlineKeyboardButtonData("Fri", "5"),
-			tgbotapi.NewInlineKeyboardButtonData("Sat", "6"),
-			tgbotapi.NewInlineKeyboardButtonData("Sun", "0"),
+			tgbotapi.NewInlineKeyboardButtonData("Mon", strconv.Itoa(int(time.Monday))),
+			tgbotapi.NewInlineKeyboardButtonData("Tues", strconv.Itoa(int(time.Tuesday))),
+			tgbotapi.NewInlineKeyboardButtonData("Wed", strconv.Itoa(int(time.Wednesday))),
+			tgbotapi.NewInlineKeyboardButtonData("Thur", strconv.Itoa(int(time.Thursday))),
+			tgbotapi.NewInlineKeyboardButtonData("Fri", strconv.Itoa(int(time.Friday))),
+			tgbotapi.NewInlineKeyboardButtonData("Sat", strconv.Itoa(int(time.Saturday))),
+			tgbotapi.NewInlineKeyboardButtonData("Sun", strconv.Itoa(int(time.Sunday))),
 			tgbotapi.NewInlineKeyboardButtonData("Done", "-1"),
 		),
 	)
 	return &weekdayKeyboard
+}
+
+func joinDaysString(days []time.Weekday) string {
+	stringBuilder := strings.Builder{}
+	for i, day := range days {
+		stringBuilder.WriteString(day.String())
+		if i < len(days)-1 {
+			stringBuilder.WriteString(", ")
+		}
+	}
+	return stringBuilder.String()
 }

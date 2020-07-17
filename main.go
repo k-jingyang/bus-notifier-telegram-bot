@@ -92,7 +92,7 @@ func handleIncomingMessages() {
 		if update.Message == nil && update.CallbackQuery == nil {
 			continue
 		}
-
+		// Maybe package into a struct before sending to handleRegistration?
 		outgoingMessages <- handleRegistration(update)
 	}
 }
