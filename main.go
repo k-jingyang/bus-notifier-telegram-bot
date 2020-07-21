@@ -2,11 +2,9 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -15,6 +13,7 @@ import (
 )
 
 var outgoingMessages chan tgbotapi.Chattable
+var outgoingCallbackResponses chan tgbotapi.CallbackConfig
 var incomingMessages tgbotapi.UpdatesChannel
 var bot *tgbotapi.BotAPI
 var todayCronner *cron.Cron
@@ -40,6 +39,7 @@ func init() {
 		log.Fatalln(err)
 	}
 	outgoingMessages = make(chan tgbotapi.Chattable)
+	outgoingCallbackResponses = make(chan tgbotapi.CallbackConfig)
 	initBusServiceLookUp()
 }
 
@@ -63,14 +63,19 @@ func initBusServiceLookUp() {
 
 func main() {
 	// bootstrapJobsForTesting()
+	go func() {
+		for outgoingMesage := range outgoingMessages {
+			bot.Send(outgoingMesage)
+		}
+	}()
+	go func() {
+		for outgoingCallbackResponse := range outgoingCallbackResponses {
+			bot.AnswerCallbackQuery(outgoingCallbackResponse)
+		}
+	}()
 
-	go handleIncomingMessages()
 	go handleStoredJobs()
-
-	for outgoingMesage := range outgoingMessages {
-		bot.Send(outgoingMesage)
-		fmt.Println("Sent")
-	}
+	handleIncomingMessages()
 }
 
 func bootstrapJobsForTesting() {
@@ -83,103 +88,4 @@ func bootstrapJobsForTesting() {
 	// addJob(busInfoJob, time.Monday, scheduledTime{9, 45})
 	// addJob(busInfoJob, time.Monday, scheduledTime{9, 50})
 	// addJob(busInfoJob, time.Monday, scheduledTime{10, 00})
-
-}
-
-func handleIncomingMessages() {
-	for update := range incomingMessages {
-
-		if update.Message == nil && update.CallbackQuery == nil {
-			continue
-		}
-		// Maybe package into a struct before sending to handleRegistration?
-		outgoingMessages <- handleRegistration(update)
-	}
-}
-
-func handleStoredJobs() {
-	today := time.Now().Weekday()
-	todayCronner = buildCronnerFromJobs(getJobsForDay(today), today)
-	todayCronner.Start()
-
-	// Debugging
-	log.Print("Starting jobs: ")
-	for _, entry := range todayCronner.Entries() {
-		log.Println(entry)
-	}
-
-	// Daily jobs are loaded at midnight, so that cron does not contain all jobs
-	masterCronner := cron.New()
-	masterCronner.AddFunc("*0 0 * * *", func() {
-
-		// Debugging
-		log.Print("Old jobs: ")
-		for _, entry := range todayCronner.Entries() {
-			log.Println(entry)
-		}
-		todayCronner.Stop()
-
-		newDay := time.Now().Weekday()
-		todayCronner = buildCronnerFromJobs(getJobsForDay(newDay), newDay)
-		todayCronner.Start()
-
-		// Debugging
-		log.Print("New jobs: ")
-		for _, entry := range todayCronner.Entries() {
-			log.Println(entry)
-		}
-	})
-	masterCronner.Start()
-}
-
-func buildCronnerFromJobs(jobs []scheduledJobs, day time.Weekday) *cron.Cron {
-	cronner := cron.New()
-	for _, timeJobs := range jobs {
-		cronExp := timeJobs.TimeToExecute.toCronExpression(day)
-		cronner.AddFunc(cronExp, func() {
-			for _, busJob := range timeJobs.BusInfoJobs {
-				fetchAndPushInfo(busJob)
-			}
-		})
-	}
-	return cronner
-}
-
-func addJobToTodayCronner(cronner *cron.Cron, busInfoJob busInfoJob, timeToExecute scheduledTime) {
-	cronner.AddFunc(timeToExecute.toCronExpression(time.Now().Weekday()), func() {
-		fetchAndPushInfo(busInfoJob)
-	})
-}
-
-func fetchAndPushInfo(busJob busInfoJob) {
-	busArrivalInformation := fetchBusArrivalInformation(busJob.BusStopCode, busJob.BusServiceNo)
-	textMessage := constructBusArrivalMessage(busArrivalInformation)
-	sendOutgoingMessage(busJob.ChatID, textMessage)
-}
-
-func constructBusArrivalMessage(busArrivalInformation busArrivalInformation) string {
-	stringBuilder := strings.Builder{}
-	stringBuilder.WriteString(busArrivalInformation.BusServiceNo)
-	stringBuilder.WriteString(" @ ")
-	stringBuilder.WriteString(busArrivalInformation.BusStopCode)
-	stringBuilder.WriteString(" | ")
-	if busArrivalInformation.NextBusMinutes == 0 {
-		stringBuilder.WriteString("Arr")
-	} else {
-		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes))
-	}
-	if busArrivalInformation.NextBusMinutes2 > 0 {
-		stringBuilder.WriteString(" | ")
-		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes2))
-	}
-	if busArrivalInformation.NextBusMinutes2 > 0 {
-		stringBuilder.WriteString(" | ")
-		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes3))
-	}
-	return stringBuilder.String()
-}
-
-func sendOutgoingMessage(chatID int64, textMessage string) {
-	messageToSend := tgbotapi.NewMessage(chatID, textMessage)
-	outgoingMessages <- messageToSend
 }
