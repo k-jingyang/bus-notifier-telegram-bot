@@ -20,6 +20,7 @@ import (
 // 2 (user asked about bus stop number)
 // 3 (user asked about which days, can self loop)
 // 4 (user asked about what time)
+// 5 (user asked which alarm to delete)
 type userState struct {
 	State int
 	busInfoJob
@@ -63,7 +64,14 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 	// Exits the registration process
 	if message != nil && message.IsCommand() && message.Command() == "exit" {
 		deleteUserState(chatID)
-		reply := tgbotapi.NewMessage(message.Chat.ID, "Okay")
+		reply := tgbotapi.NewMessage(chatID, "Okay!")
+		return registrationReply{replyMessage: reply}
+	}
+
+	if message != nil && message.IsCommand() && message.Command() == "delete" {
+		deleteUserState(chatID)
+		reply := tgbotapi.NewMessage(chatID, "Which alarm do you want to delete?")
+		// Get jobs based on Chat ID
 		return registrationReply{replyMessage: reply}
 	}
 
@@ -77,7 +85,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 			reply := tgbotapi.NewMessage(chatID, "Which bus would you like to be alerted for?")
 			return registrationReply{replyMessage: reply}
 		}
-		reply := tgbotapi.NewMessage(chatID, "Start by sending me /register")
+		reply := tgbotapi.NewMessage(chatID, "Start by sending me /register or if you want to delete an alarm, send me /delete")
 		return registrationReply{replyMessage: reply}
 	}
 
