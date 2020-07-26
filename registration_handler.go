@@ -24,7 +24,6 @@ import (
 type userState struct {
 	State int
 	busInfoJob
-	scheduledTime
 	SelectedDays map[time.Weekday]bool
 }
 
@@ -106,7 +105,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 		storedUserState.BusStopCode = message.Text
 		storedUserState.State = 3
 		saveUserState(chatID, *storedUserState)
-		reply := tgbotapi.NewMessage(chatID, "Which day? \n\nStop me with /exit")
+		reply := tgbotapi.NewMessage(chatID, "Which days? \n\nStop me with /exit")
 		reply.ReplyMarkup = buildWeekdayKeyboard()
 		return registrationReply{replyMessage: reply}
 	case 3:
@@ -146,12 +145,13 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 		textArr := strings.Split(message.Text, ":")
 		hour, _ := strconv.Atoi(textArr[0])
 		minute, _ := strconv.Atoi(textArr[1])
-		storedUserState.scheduledTime = scheduledTime{Hour: hour, Minute: minute}
+		storedUserState.ScheduledTime = scheduledTime{Hour: hour, Minute: minute}
 		for _, day := range storedUserState.getSelectedDays() {
-			busInfoJob, dayToExecute, timeToExecute := storedUserState.busInfoJob, day, storedUserState.scheduledTime
-			addJob(busInfoJob, dayToExecute, timeToExecute)
-			if dayToExecute == time.Now().Weekday() {
-				addJobToTodayCronner(todayCronner, busInfoJob, timeToExecute)
+			dailyBusInfoJob := storedUserState.busInfoJob
+			dailyBusInfoJob.Weekday = day
+			addJob(dailyBusInfoJob)
+			if day == time.Now().Weekday() {
+				addJobToTodayCronner(todayCronner, dailyBusInfoJob)
 			}
 		}
 
@@ -159,8 +159,8 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 			storedUserState.BusServiceNo,
 			storedUserState.BusStopCode,
 			joinDaysString(storedUserState.getSelectedDays()),
-			storedUserState.Hour,
-			storedUserState.Minute)
+			storedUserState.ScheduledTime.Hour,
+			storedUserState.ScheduledTime.Minute)
 		reply := tgbotapi.NewMessage(chatID, replyMessage)
 		reply.ReplyToMessageID = message.MessageID
 		deleteUserState(chatID)
@@ -201,6 +201,7 @@ func getUserState(chatID int64) *userState {
 }
 
 func saveUserState(chatID int64, userState userState) {
+	userState.ChatID = chatID
 	log.Println("Saving user interaction state:", userState)
 
 	key := []byte(strconv.FormatInt(chatID, 10))

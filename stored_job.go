@@ -4,17 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/boltdb/bolt"
 )
 
 const db string = "job.db"
-
-type scheduledJobs struct {
-	TimeToExecute scheduledTime
-	BusInfoJobs   []busInfoJob
-}
 
 type scheduledTime struct {
 	Hour   int
@@ -25,34 +21,15 @@ func (s *scheduledTime) toCronExpression(day time.Weekday) string {
 	return fmt.Sprintf("%d %d * * %d", s.Minute, s.Hour, day)
 }
 
-func (s *scheduledTime) toKey() []byte {
-	// Year, Month, Day is arbitrary. Hour and minute are encapsulated inside time.Time to make it sortable.
-	key, err := time.Date(1991, 2, 4, s.Hour, s.Minute, 0, 0, time.Local).MarshalText()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	return key
-}
-
-func (s *scheduledTime) fromKey(key []byte) {
-	var storedTime time.Time
-	err := storedTime.UnmarshalText(key)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	s.Hour = storedTime.Hour()
-	s.Minute = storedTime.Minute()
-}
-
 type busInfoJob struct {
-	ChatID       int64
-	BusStopCode  string
-	BusServiceNo string
+	ChatID        int64
+	BusStopCode   string
+	BusServiceNo  string
+	ScheduledTime scheduledTime
+	Weekday       time.Weekday
 }
 
-func addJob(newBusInfoJob busInfoJob, weekday time.Weekday, timeToExecute scheduledTime) {
-	key := timeToExecute.toKey()
-	log.Println("Time of new job:", string(key))
+func addJob(newBusInfoJob busInfoJob) {
 
 	db, err := bolt.Open(db, 0600, nil)
 	if err != nil {
@@ -61,44 +38,87 @@ func addJob(newBusInfoJob busInfoJob, weekday time.Weekday, timeToExecute schedu
 	defer db.Close()
 
 	db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte(weekday.String()))
-		if err != nil {
-			log.Fatalln(err)
-		}
 
-		storedJobs := b.Get(key)
-		if storedJobs == nil {
-			encBusInfoJobs, err := json.Marshal([]busInfoJob{newBusInfoJob})
-			if err != nil {
-				log.Fatalln(err)
-			}
-			log.Println("New job:", newBusInfoJob)
-			b.Put(key, encBusInfoJobs)
-		} else {
-			existingBusInfoJobs := []busInfoJob{}
-			json.Unmarshal(storedJobs, &existingBusInfoJobs)
-
-			for _, s := range existingBusInfoJobs {
-				if newBusInfoJob == s {
-					log.Println("Job already exists:", newBusInfoJob)
-					return nil
-				}
-			}
-			encBusInfoJobs, err := json.Marshal(append(existingBusInfoJobs, newBusInfoJob))
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			log.Println("Adding to existing jobs", append(existingBusInfoJobs, newBusInfoJob))
-			b.Put(key, encBusInfoJobs)
-		}
-
+		storeJob(newBusInfoJob, tx)
+		storeJobForLookup(newBusInfoJob, tx)
 		return nil
 	})
 }
 
-func getJobsForDay(weekday time.Weekday) []scheduledJobs {
-	jobsOnDay := []scheduledJobs{}
+func storeJob(newBusInfoJob busInfoJob, tx *bolt.Tx) {
+	// User bucket: ChatID (Key) -> Registered jobs for this user (Value)
+	userKey := []byte(strconv.FormatInt(newBusInfoJob.ChatID, 10))
+	b, err := tx.CreateBucketIfNotExists([]byte("Users"))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	storedJobs := b.Get(userKey)
+	if storedJobs == nil {
+		encBusInfoJobs, err := json.Marshal([]busInfoJob{newBusInfoJob})
+		if err != nil {
+			log.Fatalln(err)
+		}
+		log.Println("New job:", newBusInfoJob)
+		b.Put(userKey, encBusInfoJobs)
+	} else {
+		existingBusInfoJobs := []busInfoJob{}
+		json.Unmarshal(storedJobs, &existingBusInfoJobs)
+
+		for _, s := range existingBusInfoJobs {
+			if newBusInfoJob == s {
+				log.Println("Job already exists:", newBusInfoJob)
+			}
+		}
+		encBusInfoJobs, err := json.Marshal(append(existingBusInfoJobs, newBusInfoJob))
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		log.Println("Adding to existing jobs", append(existingBusInfoJobs, newBusInfoJob))
+		b.Put(userKey, encBusInfoJobs)
+	}
+
+}
+
+// Lookup bucket: Weekday (Key) -> Chat IDs with jobs for the day (Value)
+func storeJobForLookup(newBusInfoJob busInfoJob, tx *bolt.Tx) error {
+	dayKey := []byte(newBusInfoJob.Weekday.String())
+	b, err := tx.CreateBucketIfNotExists([]byte("Jobs"))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	storedChatIDs := b.Get(dayKey)
+	if storedChatIDs == nil {
+		encChatID, err := json.Marshal(newBusInfoJob.ChatID)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		log.Println("New Chat ID:", newBusInfoJob.ChatID)
+		b.Put(dayKey, encChatID)
+	} else {
+		existingChatIDs := []int64{}
+		json.Unmarshal(storedChatIDs, &existingChatIDs)
+
+		for _, s := range existingChatIDs {
+			if newBusInfoJob.ChatID == s {
+				log.Println("Chat ID already exists in the lookup at this key:", newBusInfoJob)
+				return nil
+			}
+		}
+		encChatIDs, err := json.Marshal(append(existingChatIDs, newBusInfoJob.ChatID))
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		log.Println("Adding to existing jobs", append(encChatIDs))
+		b.Put(dayKey, encChatIDs)
+	}
+	return nil
+}
+
+func getJobsForDay(weekday time.Weekday) []busInfoJob {
+	dayKey := []byte(weekday.String())
+	jobsOnDay := []busInfoJob{}
 
 	db, err := bolt.Open(db, 0600, nil)
 	if err != nil {
@@ -107,19 +127,23 @@ func getJobsForDay(weekday time.Weekday) []scheduledJobs {
 	defer db.Close()
 
 	err = db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(weekday.String()))
+
+		b := tx.Bucket([]byte("Jobs"))
 		if b == nil {
 			return nil
 		}
 
-		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			storedBusInfoJobs := []busInfoJob{}
-			json.Unmarshal(v, &storedBusInfoJobs)
-			var time scheduledTime
-			time.fromKey(k)
-			jobsAtTime := scheduledJobs{time, storedBusInfoJobs}
-			jobsOnDay = append(jobsOnDay, jobsAtTime)
+		// List of Chat IDs that has jobs for the day
+		storedChatIDs := b.Get(dayKey)
+
+		if len(storedChatIDs) == 0 {
+			return nil
+		}
+
+		decodedChatIDs := []int64{}
+		json.Unmarshal(storedChatIDs, &decodedChatIDs)
+		for _, chatID := range decodedChatIDs {
+			jobsOnDay = append(jobsOnDay, getJobsByChatIDandDay(chatID, weekday, tx)...)
 		}
 		return nil
 	})
@@ -129,4 +153,25 @@ func getJobsForDay(weekday time.Weekday) []scheduledJobs {
 	}
 
 	return jobsOnDay
+}
+
+func getJobsByChatIDandDay(chatID int64, weekday time.Weekday, tx *bolt.Tx) []busInfoJob {
+	b := tx.Bucket([]byte("Users"))
+	if b == nil {
+		return nil
+	}
+
+	userKey := []byte(strconv.FormatInt(chatID, 10))
+	v := b.Get(userKey)
+	storedJobs := []busInfoJob{}
+	json.Unmarshal(v, &storedJobs)
+
+	storedJobsForDay := []busInfoJob{}
+	for _, job := range storedJobs {
+		if job.Weekday == weekday {
+			storedJobsForDay = append(storedJobsForDay, job)
+		}
+	}
+
+	return storedJobsForDay
 }

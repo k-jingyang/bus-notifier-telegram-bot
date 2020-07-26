@@ -45,21 +45,19 @@ func handleStoredJobs() {
 	masterCronner.Start()
 }
 
-func buildCronnerFromJobs(jobs []scheduledJobs, day time.Weekday) *cron.Cron {
+func buildCronnerFromJobs(jobs []busInfoJob, day time.Weekday) *cron.Cron {
 	cronner := cron.New()
-	for _, timeJobs := range jobs {
-		cronExp := timeJobs.TimeToExecute.toCronExpression(day)
+	for _, job := range jobs {
+		cronExp := job.ScheduledTime.toCronExpression(day)
 		cronner.AddFunc(cronExp, func() {
-			for _, busJob := range timeJobs.BusInfoJobs {
-				fetchAndPushInfo(busJob)
-			}
+			fetchAndPushInfo(job)
 		})
 	}
 	return cronner
 }
 
-func addJobToTodayCronner(cronner *cron.Cron, busInfoJob busInfoJob, timeToExecute scheduledTime) {
-	cronner.AddFunc(timeToExecute.toCronExpression(time.Now().Weekday()), func() {
+func addJobToTodayCronner(cronner *cron.Cron, busInfoJob busInfoJob) {
+	cronner.AddFunc(busInfoJob.ScheduledTime.toCronExpression(time.Now().Weekday()), func() {
 		fetchAndPushInfo(busInfoJob)
 	})
 }
