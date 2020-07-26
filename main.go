@@ -78,6 +78,25 @@ func main() {
 	handleIncomingMessages()
 }
 
+func handleIncomingMessages() {
+	for update := range incomingMessages {
+		if update.Message == nil && update.CallbackQuery == nil {
+			continue
+		}
+
+		registrationReply := handleRegistration(update)
+
+		if registrationReply.replyMessage != nil {
+			outgoingMessages <- registrationReply.replyMessage
+		}
+
+		zero := tgbotapi.CallbackConfig{}
+		if registrationReply.callbackResponse != zero {
+			outgoingCallbackResponses <- registrationReply.callbackResponse
+		}
+	}
+}
+
 func bootstrapJobsForTesting() {
 	myChatIDStr := os.Getenv("CHAT_ID")
 	myChatID, _ := strconv.ParseInt(myChatIDStr, 10, 64)

@@ -45,16 +45,12 @@ func (userState *userState) getSelectedDays() []time.Weekday {
 	return selectedDays
 }
 
-func handleIncomingMessages() {
-	for update := range incomingMessages {
-		if update.Message == nil && update.CallbackQuery == nil {
-			continue
-		}
-		handleRegistration(update)
-	}
+type registrationReply struct {
+	replyMessage     tgbotapi.Chattable
+	callbackResponse tgbotapi.CallbackConfig
 }
 
-func handleRegistration(update tgbotapi.Update) {
+func handleRegistration(update tgbotapi.Update) registrationReply {
 	var chatID int64
 	if update.CallbackQuery != nil {
 		chatID = update.CallbackQuery.Message.Chat.ID
@@ -68,24 +64,21 @@ func handleRegistration(update tgbotapi.Update) {
 	if message != nil && message.IsCommand() && message.Command() == "exit" {
 		deleteUserState(chatID)
 		reply := tgbotapi.NewMessage(message.Chat.ID, "Okay")
-		outgoingMessages <- reply
-		return
+		return registrationReply{replyMessage: reply}
 	}
 
 	storedUserState := getUserState(chatID)
 
 	// If db does not have this record
 	if storedUserState == nil {
-		if message.IsCommand() && message.Command() == "register" {
+		if message != nil && message.IsCommand() && message.Command() == "register" {
 			userState := userState{State: 1, SelectedDays: make(map[time.Weekday]bool)}
 			saveUserState(chatID, userState)
 			reply := tgbotapi.NewMessage(chatID, "Which bus would you like to be alerted for?")
-			outgoingMessages <- reply
-		} else {
-			reply := tgbotapi.NewMessage(chatID, "Start by sending me /register")
-			outgoingMessages <- reply
+			return registrationReply{replyMessage: reply}
 		}
-		return
+		reply := tgbotapi.NewMessage(chatID, "Start by sending me /register")
+		return registrationReply{replyMessage: reply}
 	}
 
 	switch storedUserState.State {
@@ -96,12 +89,10 @@ func handleRegistration(update tgbotapi.Update) {
 			storedUserState.State = 2
 			saveUserState(chatID, *storedUserState)
 			reply := tgbotapi.NewMessage(chatID, "Which bus stop? \n\nStop me with /exit")
-			outgoingMessages <- reply
-		} else {
-			reply := tgbotapi.NewMessage(chatID, "Invalid bus, please try again \n\nStop me with /exit")
-			outgoingMessages <- reply
+			return registrationReply{replyMessage: reply}
 		}
-		return
+		reply := tgbotapi.NewMessage(chatID, "Invalid bus, please try again \n\nStop me with /exit")
+		return registrationReply{replyMessage: reply}
 	case 2:
 		// TODO: Validate bus stop number, and check if said bus number exists in this bus stop
 		storedUserState.BusStopCode = message.Text
@@ -109,8 +100,7 @@ func handleRegistration(update tgbotapi.Update) {
 		saveUserState(chatID, *storedUserState)
 		reply := tgbotapi.NewMessage(chatID, "Which day? \n\nStop me with /exit")
 		reply.ReplyMarkup = buildWeekdayKeyboard()
-		outgoingMessages <- reply
-		return
+		return registrationReply{replyMessage: reply}
 	case 3:
 		if update.CallbackQuery != nil {
 			dayInt, _ := strconv.Atoi(update.CallbackQuery.Data)
@@ -120,7 +110,7 @@ func handleRegistration(update tgbotapi.Update) {
 				saveUserState(chatID, *storedUserState)
 
 				stringBuilder := strings.Builder{}
-				stringBuilder.WriteString("Which day? \nSelected: ")
+				stringBuilder.WriteString("Which days? \nSelected: ")
 				if len(storedUserState.getSelectedDays()) == 0 {
 					stringBuilder.WriteString("None")
 				} else {
@@ -135,17 +125,14 @@ func handleRegistration(update tgbotapi.Update) {
 
 				// Need to send CallBackConfig back, so that button stops the loading animation
 				callBackID := update.CallbackQuery.ID
-				outgoingCallbackResponses <- tgbotapi.NewCallback(callBackID, "")
-				outgoingMessages <- editedMessage
-			} else {
-				storedUserState.State = 4
-				saveUserState(chatID, *storedUserState)
-				reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\nStop me with /exit")
-				reply.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
-				outgoingMessages <- reply
+				return registrationReply{replyMessage: editedMessage, callbackResponse: tgbotapi.NewCallback(callBackID, "")}
 			}
+			storedUserState.State = 4
+			saveUserState(chatID, *storedUserState)
+			reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\nStop me with /exit")
+			reply.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
+			return registrationReply{replyMessage: reply}
 		}
-		return
 	case 4:
 		// TODO: Validate time
 		textArr := strings.Split(message.Text, ":")
@@ -169,9 +156,10 @@ func handleRegistration(update tgbotapi.Update) {
 		reply := tgbotapi.NewMessage(chatID, replyMessage)
 		reply.ReplyToMessageID = message.MessageID
 		deleteUserState(chatID)
-		outgoingMessages <- reply
-		return
+		return registrationReply{replyMessage: reply}
 	}
+	log.Fatalln("Unhandled state reached")
+	return registrationReply{replyMessage: tgbotapi.NewMessage(chatID, "Unexpected error has occured")}
 }
 
 func getUserState(chatID int64) *userState {
