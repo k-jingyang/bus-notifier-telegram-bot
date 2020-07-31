@@ -101,8 +101,8 @@ func bootstrapJobsForTesting() {
 	myChatIDStr := os.Getenv("CHAT_ID")
 	myChatID, _ := strconv.ParseInt(myChatIDStr, 10, 64)
 	timeToExecute := scheduledTime{17, 20}
-	busInfoJob := busInfoJob{myChatID, "43411", "506", timeToExecute, time.Monday}
-	addJob(busInfoJob)
+	busInfoJob := BusInfoJob{myChatID, "43411", "506", timeToExecute, time.Monday}
+	StoreJob(busInfoJob)
 	// addJob(busInfoJob, time.Monday, scheduledTime{9, 45})
 	// addJob(busInfoJob, time.Monday, scheduledTime{9, 50})
 	// addJob(busInfoJob, time.Monday, scheduledTime{10, 00})

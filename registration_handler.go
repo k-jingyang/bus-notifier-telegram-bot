@@ -23,7 +23,7 @@ import (
 // 5 (user asked which alarm to delete)
 type userState struct {
 	State int
-	busInfoJob
+	BusInfoJob
 	SelectedDays map[time.Weekday]bool
 }
 
@@ -147,9 +147,9 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 		minute, _ := strconv.Atoi(textArr[1])
 		storedUserState.ScheduledTime = scheduledTime{Hour: hour, Minute: minute}
 		for _, day := range storedUserState.getSelectedDays() {
-			dailyBusInfoJob := storedUserState.busInfoJob
+			dailyBusInfoJob := storedUserState.BusInfoJob
 			dailyBusInfoJob.Weekday = day
-			addJob(dailyBusInfoJob)
+			StoreJob(dailyBusInfoJob)
 			if day == time.Now().Weekday() {
 				addJobToTodayCronner(todayCronner, dailyBusInfoJob)
 			}
