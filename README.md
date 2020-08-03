@@ -1,4 +1,7 @@
-## Bus - Telegram Bot (Nickname: Smellybus)
+## Bus - Telegram Bot 
+
+Nickname: Smellybus
+
 ![alt text](https://github.com/k-jingyang/smellybus-telegram-bot/workflows/Go/badge.svg "Build status")
 
 
