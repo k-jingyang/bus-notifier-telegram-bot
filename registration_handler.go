@@ -14,24 +14,24 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-// userState stores the state of user's registration
+// UserState stores the state of user's registration
 // 0 (nothing)
 // 1 (user asked about bus number)
 // 2 (user asked about bus stop number)
 // 3 (user asked about which days, can self loop)
 // 4 (user asked about what time)
 // 5 (user asked which alarm to delete)
-type userState struct {
+type UserState struct {
 	State int
 	BusInfoJob
 	SelectedDays map[time.Weekday]bool
 }
 
-func (userState *userState) toggleDay(day time.Weekday) {
+func (userState *UserState) toggleDay(day time.Weekday) {
 	userState.SelectedDays[day] = !userState.SelectedDays[day]
 }
 
-func (userState *userState) getSelectedDays() []time.Weekday {
+func (userState *UserState) getSelectedDays() []time.Weekday {
 	selectedDays := []time.Weekday{}
 	for k, v := range userState.SelectedDays {
 		if v {
@@ -62,25 +62,40 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 
 	// Exits the registration process
 	if message != nil && message.IsCommand() && message.Command() == "exit" {
-		deleteUserState(chatID)
+		DeleteUserState(chatID)
 		reply := tgbotapi.NewMessage(chatID, "Okay!")
 		return registrationReply{replyMessage: reply}
 	}
 
 	if message != nil && message.IsCommand() && message.Command() == "delete" {
-		deleteUserState(chatID)
-		reply := tgbotapi.NewMessage(chatID, "Which alarm do you want to delete?")
-		// Get jobs based on Chat ID
+		storedJobs := GetJobsByChatID(chatID)
+		if len(storedJobs) == 0 {
+			reply := tgbotapi.NewMessage(chatID, "You have no registered alarms")
+			return registrationReply{replyMessage: reply}
+		}
+
+		stringBuilder := strings.Builder{}
+		stringBuilder.WriteString("Which alarm do you want to delete? Tell me the number!\n")
+		for i, job := range storedJobs {
+			jobString := fmt.Sprintf("%d. %s - %s - Bus %s @ %s", i+1, job.Weekday.String(), job.ScheduledTime.toString(), job.BusServiceNo, job.BusStopCode)
+			stringBuilder.WriteString(jobString)
+			stringBuilder.WriteString("\n")
+		}
+		stringBuilder.WriteString("\nStop me with /exit")
+		userState := UserState{State: 5, SelectedDays: make(map[time.Weekday]bool)}
+		SaveUserState(chatID, userState)
+
+		reply := tgbotapi.NewMessage(chatID, stringBuilder.String())
 		return registrationReply{replyMessage: reply}
 	}
 
-	storedUserState := getUserState(chatID)
+	storedUserState := GetUserState(chatID)
 
 	// If db does not have this record
 	if storedUserState == nil {
 		if message != nil && message.IsCommand() && message.Command() == "register" {
-			userState := userState{State: 1, SelectedDays: make(map[time.Weekday]bool)}
-			saveUserState(chatID, userState)
+			userState := UserState{State: 1, SelectedDays: make(map[time.Weekday]bool)}
+			SaveUserState(chatID, userState)
 			reply := tgbotapi.NewMessage(chatID, "Which bus would you like to be alerted for?")
 			return registrationReply{replyMessage: reply}
 		}
@@ -94,7 +109,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 			busServiceNo := message.Text
 			storedUserState.BusServiceNo = busServiceNo
 			storedUserState.State = 2
-			saveUserState(chatID, *storedUserState)
+			SaveUserState(chatID, *storedUserState)
 			reply := tgbotapi.NewMessage(chatID, "Which bus stop? \n\nStop me with /exit")
 			return registrationReply{replyMessage: reply}
 		}
@@ -104,7 +119,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 		// TODO: Validate bus stop number, and check if said bus number exists in this bus stop
 		storedUserState.BusStopCode = message.Text
 		storedUserState.State = 3
-		saveUserState(chatID, *storedUserState)
+		SaveUserState(chatID, *storedUserState)
 		reply := tgbotapi.NewMessage(chatID, "Which days? \n\nStop me with /exit")
 		reply.ReplyMarkup = buildWeekdayKeyboard()
 		return registrationReply{replyMessage: reply}
@@ -114,7 +129,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 			// If user doesn't click on Done, store day
 			if dayInt != -1 {
 				storedUserState.toggleDay(time.Weekday(dayInt))
-				saveUserState(chatID, *storedUserState)
+				SaveUserState(chatID, *storedUserState)
 
 				stringBuilder := strings.Builder{}
 				stringBuilder.WriteString("Which days? \nSelected: ")
@@ -124,7 +139,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 					selectedDays := storedUserState.getSelectedDays()
 					stringBuilder.WriteString(joinDaysString(selectedDays))
 				}
-				stringBuilder.WriteString("\n Stop me with /exit")
+				stringBuilder.WriteString("\nStop me with /exit")
 
 				messageID := update.CallbackQuery.Message.MessageID
 				editedMessage := tgbotapi.NewEditMessageText(chatID, messageID, stringBuilder.String())
@@ -135,16 +150,23 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 				return registrationReply{replyMessage: editedMessage, callbackResponse: tgbotapi.NewCallback(callBackID, "")}
 			}
 			storedUserState.State = 4
-			saveUserState(chatID, *storedUserState)
+			SaveUserState(chatID, *storedUserState)
 			reply := tgbotapi.NewMessage(chatID, "What time? In the format of hh:mm \n\nStop me with /exit")
 			reply.ReplyMarkup = tgbotapi.ForceReply{ForceReply: true}
 			return registrationReply{replyMessage: reply}
 		}
 	case 4:
-		// TODO: Validate time
 		textArr := strings.Split(message.Text, ":")
-		hour, _ := strconv.Atoi(textArr[0])
-		minute, _ := strconv.Atoi(textArr[1])
+		hour, err := strconv.Atoi(textArr[0])
+		if err != nil || hour > 23 {
+			reply := tgbotapi.NewMessage(chatID, "Invalid time specified. In the format of hh:mm please.\n Stop me with /exit")
+			return registrationReply{replyMessage: reply}
+		}
+		minute, err := strconv.Atoi(textArr[1])
+		if err != nil || minute > 59 {
+			reply := tgbotapi.NewMessage(chatID, "Invalid time specified. In the format of hh:mm please.\n Stop me with /exit")
+			return registrationReply{replyMessage: reply}
+		}
 		storedUserState.ScheduledTime = scheduledTime{Hour: hour, Minute: minute}
 		for _, day := range storedUserState.getSelectedDays() {
 			dailyBusInfoJob := storedUserState.BusInfoJob
@@ -163,16 +185,41 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 			storedUserState.ScheduledTime.Minute)
 		reply := tgbotapi.NewMessage(chatID, replyMessage)
 		reply.ReplyToMessageID = message.MessageID
-		deleteUserState(chatID)
+		DeleteUserState(chatID)
+		return registrationReply{replyMessage: reply}
+	case 5:
+		selectedIndex, err := strconv.Atoi(message.Text)
+		indexToDelete := selectedIndex - 1
+		storedJobs := GetJobsByChatID(chatID)
+
+		if err != nil || indexToDelete < 0 || indexToDelete >= len(storedJobs) {
+			reply := tgbotapi.NewMessage(chatID, "Invalid selection\n Stop me with /exit")
+			return registrationReply{replyMessage: reply}
+		}
+		DeleteJob(storedJobs[indexToDelete])
+
+		remainingJobs := GetJobsByChatID(chatID)
+		stringBuilder := strings.Builder{}
+		stringBuilder.WriteString("Which alarm do you want to delete? Tell me the number!\n")
+		for i, job := range remainingJobs {
+			jobString := fmt.Sprintf("%d. %s - %s - Bus %s @ %s", i+1, job.Weekday.String(), job.ScheduledTime.toString(), job.BusServiceNo, job.BusStopCode)
+			stringBuilder.WriteString(jobString)
+			stringBuilder.WriteString("\n")
+		}
+		stringBuilder.WriteString("\nStop me with /exit")
+
+		reply := tgbotapi.NewMessage(chatID, stringBuilder.String())
 		return registrationReply{replyMessage: reply}
 	}
+
 	log.Fatalln("Unhandled state reached")
 	return registrationReply{replyMessage: tgbotapi.NewMessage(chatID, "Unexpected error has occured")}
 }
 
-func getUserState(chatID int64) *userState {
+// GetUserState retrieves the stored user state
+func GetUserState(chatID int64) *UserState {
 	key := []byte(strconv.FormatInt(chatID, 10))
-	var storedUserState userState
+	var storedUserState UserState
 
 	db, err := bolt.Open("user_state.db", 0600, nil)
 	if err != nil {
@@ -200,7 +247,8 @@ func getUserState(chatID int64) *userState {
 	return &storedUserState
 }
 
-func saveUserState(chatID int64, userState userState) {
+// SaveUserState saves the user state, holding information about the stage of registration that the user is at
+func SaveUserState(chatID int64, userState UserState) {
 	userState.ChatID = chatID
 	log.Println("Saving user interaction state:", userState)
 
@@ -224,7 +272,8 @@ func saveUserState(chatID int64, userState userState) {
 	})
 }
 
-func deleteUserState(chatID int64) {
+// DeleteUserState deletes the saved user state
+func DeleteUserState(chatID int64) {
 	key := []byte(strconv.FormatInt(chatID, 10))
 
 	db, err := bolt.Open("user_state.db", 0600, nil)

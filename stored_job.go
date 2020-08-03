@@ -19,6 +19,10 @@ type scheduledTime struct {
 	Minute int
 }
 
+func (s *scheduledTime) toString() string {
+	return fmt.Sprintf("%02d:%02d", s.Hour, s.Minute)
+}
+
 func (s *scheduledTime) toCronExpression(day time.Weekday) string {
 	return fmt.Sprintf("%d %d * * %d", s.Minute, s.Hour, day)
 }
