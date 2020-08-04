@@ -12,7 +12,7 @@ import (
 
 func handleStoredJobs() {
 	today := time.Now().Weekday()
-	todayCronner = buildCronnerFromJobs(GetJobsByDay(today), today)
+	todayCronner = buildCronnerFromJobs(storedJobDB.GetJobsByDay(today), today)
 	todayCronner.Start()
 
 	// Debugging
@@ -33,7 +33,7 @@ func handleStoredJobs() {
 		todayCronner.Stop()
 
 		newDay := time.Now().Weekday()
-		todayCronner = buildCronnerFromJobs(GetJobsByDay(newDay), newDay)
+		todayCronner = buildCronnerFromJobs(storedJobDB.GetJobsByDay(newDay), newDay)
 		todayCronner.Start()
 
 		// Debugging
@@ -48,7 +48,7 @@ func handleStoredJobs() {
 func buildCronnerFromJobs(jobs []BusInfoJob, day time.Weekday) *cron.Cron {
 	cronner := cron.New()
 	for _, job := range jobs {
-		cronExp := job.ScheduledTime.toCronExpression(day)
+		cronExp := job.ScheduledTime.ToCronExpression(day)
 		cronner.AddFunc(cronExp, func() {
 			fetchAndPushInfo(job)
 		})
@@ -57,7 +57,7 @@ func buildCronnerFromJobs(jobs []BusInfoJob, day time.Weekday) *cron.Cron {
 }
 
 func addJobToTodayCronner(cronner *cron.Cron, busInfoJob BusInfoJob) {
-	cronner.AddFunc(busInfoJob.ScheduledTime.toCronExpression(time.Now().Weekday()), func() {
+	cronner.AddFunc(busInfoJob.ScheduledTime.ToCronExpression(time.Now().Weekday()), func() {
 		fetchAndPushInfo(busInfoJob)
 	})
 }

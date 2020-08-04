@@ -68,7 +68,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 	}
 
 	if message != nil && message.IsCommand() && message.Command() == "delete" {
-		storedJobs := GetJobsByChatID(chatID)
+		storedJobs := storedJobDB.GetJobsByChatID(chatID)
 		if len(storedJobs) == 0 {
 			reply := tgbotapi.NewMessage(chatID, "You have no registered alarms")
 			return registrationReply{replyMessage: reply}
@@ -77,7 +77,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 		stringBuilder := strings.Builder{}
 		stringBuilder.WriteString("Which alarm do you want to delete? Tell me the number!\n")
 		for i, job := range storedJobs {
-			jobString := fmt.Sprintf("%d. %s - %s - Bus %s @ %s", i+1, job.Weekday.String(), job.ScheduledTime.toString(), job.BusServiceNo, job.BusStopCode)
+			jobString := fmt.Sprintf("%d. %s - %s - Bus %s @ %s", i+1, job.Weekday.String(), job.ScheduledTime.ToString(), job.BusServiceNo, job.BusStopCode)
 			stringBuilder.WriteString(jobString)
 			stringBuilder.WriteString("\n")
 		}
@@ -167,11 +167,11 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 			reply := tgbotapi.NewMessage(chatID, "Invalid time specified. In the format of hh:mm please.\n Stop me with /exit")
 			return registrationReply{replyMessage: reply}
 		}
-		storedUserState.ScheduledTime = scheduledTime{Hour: hour, Minute: minute}
+		storedUserState.ScheduledTime = ScheduledTime{Hour: hour, Minute: minute}
 		for _, day := range storedUserState.getSelectedDays() {
 			dailyBusInfoJob := storedUserState.BusInfoJob
 			dailyBusInfoJob.Weekday = day
-			StoreJob(dailyBusInfoJob)
+			storedJobDB.StoreJob(dailyBusInfoJob)
 			if day == time.Now().Weekday() {
 				addJobToTodayCronner(todayCronner, dailyBusInfoJob)
 			}
@@ -190,19 +190,19 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 	case 5:
 		selectedIndex, err := strconv.Atoi(message.Text)
 		indexToDelete := selectedIndex - 1
-		storedJobs := GetJobsByChatID(chatID)
+		storedJobs := storedJobDB.GetJobsByChatID(chatID)
 
 		if err != nil || indexToDelete < 0 || indexToDelete >= len(storedJobs) {
 			reply := tgbotapi.NewMessage(chatID, "Invalid selection\n Stop me with /exit")
 			return registrationReply{replyMessage: reply}
 		}
-		DeleteJob(storedJobs[indexToDelete])
+		storedJobDB.DeleteJob(storedJobs[indexToDelete])
 
-		remainingJobs := GetJobsByChatID(chatID)
+		remainingJobs := storedJobDB.GetJobsByChatID(chatID)
 		stringBuilder := strings.Builder{}
 		stringBuilder.WriteString("Which alarm do you want to delete? Tell me the number!\n")
 		for i, job := range remainingJobs {
-			jobString := fmt.Sprintf("%d. %s - %s - Bus %s @ %s", i+1, job.Weekday.String(), job.ScheduledTime.toString(), job.BusServiceNo, job.BusStopCode)
+			jobString := fmt.Sprintf("%d. %s - %s - Bus %s @ %s", i+1, job.Weekday.String(), job.ScheduledTime.ToString(), job.BusServiceNo, job.BusStopCode)
 			stringBuilder.WriteString(jobString)
 			stringBuilder.WriteString("\n")
 		}

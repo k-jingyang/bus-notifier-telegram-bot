@@ -1,26 +1,31 @@
 package main
 
 import (
+	"log"
 	"testing"
 	"time"
 )
 
 func TestCreateReadDeleteStoredJobs(t *testing.T) {
-	timeToExecute := scheduledTime{17, 20}
+	storedJobDB = NewStoredJob("test.db")
+
+	timeToExecute := ScheduledTime{17, 20}
 	busInfoJob := BusInfoJob{12345, "43411", "506", timeToExecute, time.Monday}
 
-	StoreJob(busInfoJob)
+	storedJobDB.StoreJob(busInfoJob)
 
-	storedJobs := GetJobsByChatID(12345)
+	storedJobs := storedJobDB.GetJobsByChatID(12345)
 	if len(storedJobs) != 1 || storedJobs[0].BusStopCode != "43411" || storedJobs[0].BusServiceNo != "506" || storedJobs[0].ScheduledTime != timeToExecute || storedJobs[0].Weekday != time.Monday {
 		t.Errorf("Bus info job not stored correctly")
 	}
 
-	DeleteJob(busInfoJob)
+	storedJobDB.DeleteJob(busInfoJob)
 
-	storedJobsByChatID := GetJobsByChatID(12345)
-	storedJobsByDay := GetJobsByDay(time.Monday)
+	storedJobsByChatID := storedJobDB.GetJobsByChatID(12345)
+	storedJobsByDay := storedJobDB.GetJobsByDay(time.Monday)
 	if len(storedJobsByChatID) > 0 || len(storedJobsByDay) > 0 {
-		t.Errorf("Bus info job not delete correctly")
+		log.Println("storedJobsByChatID: {}", storedJobsByChatID)
+		log.Println("storedJobsByDay: {}", storedJobsByDay)
+		t.Errorf("Bus info job not deleted correctly")
 	}
 }
