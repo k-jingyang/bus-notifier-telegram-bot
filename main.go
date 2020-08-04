@@ -19,7 +19,7 @@ var bot *tgbotapi.BotAPI
 var todayCronner *cron.Cron
 var busServiceLookUp map[string]bool
 
-func init() {
+func initTelegramAPI() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatalln(err)
@@ -38,9 +38,6 @@ func init() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	outgoingMessages = make(chan tgbotapi.Chattable)
-	outgoingCallbackResponses = make(chan tgbotapi.CallbackConfig)
-	initBusServiceLookUp()
 }
 
 func initBusServiceLookUp() {
@@ -61,7 +58,16 @@ func initBusServiceLookUp() {
 	}
 }
 
+func initOutgoingChannels() {
+	outgoingMessages = make(chan tgbotapi.Chattable)
+	outgoingCallbackResponses = make(chan tgbotapi.CallbackConfig)
+}
+
 func main() {
+	initTelegramAPI()
+	initBusServiceLookUp()
+	initOutgoingChannels()
+
 	// bootstrapJobsForTesting()
 	go func() {
 		for outgoingMesage := range outgoingMessages {
