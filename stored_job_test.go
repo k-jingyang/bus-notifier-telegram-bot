@@ -2,12 +2,13 @@ package main
 
 import (
 	"log"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestCreateReadDeleteStoredJobs(t *testing.T) {
-	storedJobDB = NewStoredJob("test.db")
+	storedJobDB = NewJobDB("test.db")
 
 	timeToExecute := ScheduledTime{17, 20}
 	busInfoJob := BusInfoJob{12345, "43411", "506", timeToExecute, time.Monday}
@@ -28,4 +29,5 @@ func TestCreateReadDeleteStoredJobs(t *testing.T) {
 		log.Println("storedJobsByDay: {}", storedJobsByDay)
 		t.Errorf("Bus info job not deleted correctly")
 	}
+	os.Remove("test.db")
 }

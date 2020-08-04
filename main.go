@@ -12,7 +12,8 @@ import (
 	"github.com/robfig/cron"
 )
 
-const jobDB string = "job.db"
+const jobDBFile string = "job.db"
+const userStateDBFile string = "user_state.db"
 
 var outgoingMessages chan tgbotapi.Chattable
 var outgoingCallbackResponses chan tgbotapi.CallbackConfig
@@ -20,7 +21,8 @@ var incomingMessages tgbotapi.UpdatesChannel
 var bot *tgbotapi.BotAPI
 var todayCronner *cron.Cron
 var busServiceLookUp map[string]bool
-var storedJobDB StoredJob
+var storedJobDB JobDB
+var userStateDB UserStateDB
 
 func initTelegramAPI() {
 	err := godotenv.Load()
@@ -70,7 +72,8 @@ func main() {
 	initTelegramAPI()
 	initBusServiceLookUp()
 	initOutgoingChannels()
-	storedJobDB = NewStoredJob(jobDB)
+	storedJobDB = NewJobDB(jobDBFile)
+	userStateDB = NewUserStateDB(userStateDBFile)
 
 	// bootstrapJobsForTesting()
 	go func() {

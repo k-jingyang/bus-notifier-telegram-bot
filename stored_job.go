@@ -10,15 +10,18 @@ import (
 	"github.com/boltdb/bolt"
 )
 
+// ScheduledTime contains the Hour and Minute of the registered bus alarm
 type ScheduledTime struct {
 	Hour   int
 	Minute int
 }
 
+// ToString returns the hour and minute in the format of hh:mm
 func (s *ScheduledTime) ToString() string {
 	return fmt.Sprintf("%02d:%02d", s.Hour, s.Minute)
 }
 
+// ToCronExpression returns the
 func (s *ScheduledTime) ToCronExpression(day time.Weekday) string {
 	return fmt.Sprintf("%d %d * * %d", s.Minute, s.Hour, day)
 }
@@ -32,20 +35,20 @@ type BusInfoJob struct {
 	Weekday       time.Weekday
 }
 
-// StoredJob contains the operations to store/retrieve/delete registered bus alarm jobs
-type StoredJob struct {
+// JobDB contains the operations to store/retrieve/delete registered bus alarm jobs
+type JobDB struct {
 	dbFile     string
 	userBucket string
 	jobBucket  string
 }
 
-// NewStoredJob returns an initialised instance of StoredJob
-func NewStoredJob(dbFile string) StoredJob {
-	return StoredJob{dbFile: dbFile, userBucket: "Users", jobBucket: "Jobs"}
+// NewJobDB returns an initialised instance of JobDB
+func NewJobDB(dbFile string) JobDB {
+	return JobDB{dbFile: dbFile, userBucket: "Users", jobBucket: "Jobs"}
 }
 
 // StoreJob stores the registered bus alarm into the database
-func (s *StoredJob) StoreJob(newBusInfoJob BusInfoJob) {
+func (s *JobDB) StoreJob(newBusInfoJob BusInfoJob) {
 
 	db, err := bolt.Open(s.dbFile, 0600, nil)
 	if err != nil {
@@ -62,7 +65,7 @@ func (s *StoredJob) StoreJob(newBusInfoJob BusInfoJob) {
 }
 
 // User bucket: ChatID (Key) -> Registered jobs for this user (Value)
-func (s *StoredJob) storeJob(newBusInfoJob BusInfoJob, tx *bolt.Tx) {
+func (s *JobDB) storeJob(newBusInfoJob BusInfoJob, tx *bolt.Tx) {
 	userKey := []byte(strconv.FormatInt(newBusInfoJob.ChatID, 10))
 	b, err := tx.CreateBucketIfNotExists([]byte(s.userBucket))
 	if err != nil {
@@ -97,7 +100,7 @@ func (s *StoredJob) storeJob(newBusInfoJob BusInfoJob, tx *bolt.Tx) {
 }
 
 // Lookup bucket: Weekday (Key) -> Chat IDs with jobs for the day (Value)
-func (s *StoredJob) storeJobForLookup(newBusInfoJob BusInfoJob, tx *bolt.Tx) error {
+func (s *JobDB) storeJobForLookup(newBusInfoJob BusInfoJob, tx *bolt.Tx) error {
 	dayKey := []byte(newBusInfoJob.Weekday.String())
 	b, err := tx.CreateBucketIfNotExists([]byte(s.jobBucket))
 	if err != nil {
@@ -133,7 +136,7 @@ func (s *StoredJob) storeJobForLookup(newBusInfoJob BusInfoJob, tx *bolt.Tx) err
 }
 
 // GetJobsByDay retrieves all bus alarms for the particular given day
-func (s *StoredJob) GetJobsByDay(weekday time.Weekday) []BusInfoJob {
+func (s *JobDB) GetJobsByDay(weekday time.Weekday) []BusInfoJob {
 	jobsOnDay := []BusInfoJob{}
 
 	db, err := bolt.Open(s.dbFile, 0600, nil)
@@ -167,7 +170,7 @@ func (s *StoredJob) GetJobsByDay(weekday time.Weekday) []BusInfoJob {
 	return jobsOnDay
 }
 
-func (s *StoredJob) getChatIDsByDay(weekday time.Weekday, tx *bolt.Tx) []int64 {
+func (s *JobDB) getChatIDsByDay(weekday time.Weekday, tx *bolt.Tx) []int64 {
 	dayKey := []byte(weekday.String())
 
 	b := tx.Bucket([]byte(s.jobBucket))
@@ -184,7 +187,7 @@ func (s *StoredJob) getChatIDsByDay(weekday time.Weekday, tx *bolt.Tx) []int64 {
 	return decodedChatIDs
 }
 
-func (s *StoredJob) getJobsByChatIDandDay(chatID int64, weekday time.Weekday, tx *bolt.Tx) []BusInfoJob {
+func (s *JobDB) getJobsByChatIDandDay(chatID int64, weekday time.Weekday, tx *bolt.Tx) []BusInfoJob {
 	b := tx.Bucket([]byte(s.userBucket))
 	if b == nil {
 		return nil
@@ -206,7 +209,7 @@ func (s *StoredJob) getJobsByChatIDandDay(chatID int64, weekday time.Weekday, tx
 }
 
 // GetJobsByChatID retrieves all bus alarms registered by a user identified by a ChatID
-func (s *StoredJob) GetJobsByChatID(chatID int64) []BusInfoJob {
+func (s *JobDB) GetJobsByChatID(chatID int64) []BusInfoJob {
 	userKey := []byte(strconv.FormatInt(chatID, 10))
 	storedJobs := []BusInfoJob{}
 
@@ -236,7 +239,7 @@ func (s *StoredJob) GetJobsByChatID(chatID int64) []BusInfoJob {
 }
 
 // DeleteJob deletes the given job from the database
-func (s *StoredJob) DeleteJob(jobToDelete BusInfoJob) {
+func (s *JobDB) DeleteJob(jobToDelete BusInfoJob) {
 	chatID := jobToDelete.ChatID
 
 	userKey := []byte(strconv.FormatInt(chatID, 10))
@@ -283,7 +286,7 @@ func (s *StoredJob) DeleteJob(jobToDelete BusInfoJob) {
 	})
 }
 
-func (s *StoredJob) deleteChatIDFromDayLookup(chatIDToDelete int64, weekday time.Weekday, tx *bolt.Tx) {
+func (s *JobDB) deleteChatIDFromDayLookup(chatIDToDelete int64, weekday time.Weekday, tx *bolt.Tx) {
 	dayKey := []byte(weekday.String())
 
 	b := tx.Bucket([]byte(s.jobBucket))
