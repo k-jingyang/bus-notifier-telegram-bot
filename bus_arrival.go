@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/yi-jiayu/datamall/v3"
@@ -28,6 +30,28 @@ type busArrivalInformation struct {
 	NextBusMinutes  float64
 	NextBusMinutes2 float64
 	NextBusMinutes3 float64
+}
+
+func (busArrivalInformation busArrivalInformation) toMessageString() string {
+	stringBuilder := strings.Builder{}
+	stringBuilder.WriteString(busArrivalInformation.BusServiceNo)
+	stringBuilder.WriteString(" @ ")
+	stringBuilder.WriteString(busArrivalInformation.BusStopCode)
+	stringBuilder.WriteString(" | ")
+	if busArrivalInformation.NextBusMinutes == 0 {
+		stringBuilder.WriteString("Arr")
+	} else {
+		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes))
+	}
+	if busArrivalInformation.NextBusMinutes2 > 0 {
+		stringBuilder.WriteString(" | ")
+		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes2))
+	}
+	if busArrivalInformation.NextBusMinutes3 > 0 {
+		stringBuilder.WriteString(" | ")
+		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes3))
+	}
+	return stringBuilder.String()
 }
 
 func fetchBusArrivalInformation(busStopCode string, busServiceNo string) busArrivalInformation {

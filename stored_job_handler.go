@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
@@ -64,30 +62,8 @@ func addJobToTodayCronner(cronner *cron.Cron, busInfoJob BusInfoJob) {
 
 func fetchAndPushInfo(busJob BusInfoJob) {
 	busArrivalInformation := fetchBusArrivalInformation(busJob.BusStopCode, busJob.BusServiceNo)
-	textMessage := constructBusArrivalMessage(busArrivalInformation)
+	textMessage := busArrivalInformation.toMessageString()
 	sendOutgoingMessage(busJob.ChatID, textMessage)
-}
-
-func constructBusArrivalMessage(busArrivalInformation busArrivalInformation) string {
-	stringBuilder := strings.Builder{}
-	stringBuilder.WriteString(busArrivalInformation.BusServiceNo)
-	stringBuilder.WriteString(" @ ")
-	stringBuilder.WriteString(busArrivalInformation.BusStopCode)
-	stringBuilder.WriteString(" | ")
-	if busArrivalInformation.NextBusMinutes == 0 {
-		stringBuilder.WriteString("Arr")
-	} else {
-		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes))
-	}
-	if busArrivalInformation.NextBusMinutes2 > 0 {
-		stringBuilder.WriteString(" | ")
-		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes2))
-	}
-	if busArrivalInformation.NextBusMinutes3 > 0 {
-		stringBuilder.WriteString(" | ")
-		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes3))
-	}
-	return stringBuilder.String()
 }
 
 func sendOutgoingMessage(chatID int64, textMessage string) {
