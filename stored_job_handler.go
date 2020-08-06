@@ -83,7 +83,7 @@ func constructBusArrivalMessage(busArrivalInformation busArrivalInformation) str
 		stringBuilder.WriteString(" | ")
 		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes2))
 	}
-	if busArrivalInformation.NextBusMinutes2 > 0 {
+	if busArrivalInformation.NextBusMinutes3 > 0 {
 		stringBuilder.WriteString(" | ")
 		stringBuilder.WriteString(fmt.Sprintf("%.0f mins", busArrivalInformation.NextBusMinutes3))
 	}

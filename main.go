@@ -72,6 +72,7 @@ func main() {
 	initTelegramAPI()
 	initBusServiceLookUp()
 	initOutgoingChannels()
+
 	storedJobDB = NewJobDB(jobDBFile)
 	userStateDB = NewUserStateDB(userStateDBFile)
 
