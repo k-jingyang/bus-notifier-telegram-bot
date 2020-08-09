@@ -9,27 +9,32 @@ import (
 	"github.com/yi-jiayu/datamall/v3"
 )
 
-const refDataDBFile string = "refdata.db"
+const refDataDBFile string = "../refdata.db"
 
 // This GO code helps to download
 // 1) Bus stops that each bus services
 // 2) Road name of each bus stop
 // into a boltdb file for consumption by the main app
 func main() {
-	err := godotenv.Load("../.env")
+	err := godotenv.Load("../../.env")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
+	log.Println("Downloading from LTA API...")
 	rawBusRoutes := downloadAllBusRoutes()
 	rawBusStops := downloadAllBusStops()
 
+	log.Println("Processing data...")
 	busRoutesInfo := processBusRoutes(rawBusRoutes, rawBusStops)
 	busStopInfo := processBusStops(rawBusStops)
 
+	log.Println("Storing data into reference data db...")
 	refDataDB := refdata.NewRefDataDB(refDataDBFile)
 	refDataDB.StoreBusRoutes(busRoutesInfo)
 	refDataDB.StoreBusStops(busStopInfo)
+
+	log.Println("Reference data downloaded and stored!")
 }
 
 // Both download functions can be generalised
