@@ -25,12 +25,8 @@ var storedJobDB JobDB
 var userStateDB UserStateDB
 
 func initTelegramAPI() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalln(err)
-	}
 	botToken := os.Getenv("TELEGRAM_API_TOKEN")
-	bot, err = tgbotapi.NewBotAPI(botToken)
+	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -69,6 +65,11 @@ func initOutgoingChannels() {
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	initTelegramAPI()
 	initBusServiceLookUp()
 	initOutgoingChannels()
