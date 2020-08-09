@@ -44,7 +44,7 @@ type JobDB struct {
 
 // NewJobDB returns an initialised instance of JobDB
 func NewJobDB(dbFile string) JobDB {
-	return JobDB{dbFile: dbFile, userBucket: "Users", jobBucket: "Jobs"}
+	return JobDB{dbFile: dbFile, userBucket: "users", jobBucket: "jobs"}
 }
 
 // StoreJob stores the registered bus alarm into the database

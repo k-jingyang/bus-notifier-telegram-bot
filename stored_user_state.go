@@ -53,7 +53,7 @@ type UserStateDB struct {
 
 // NewUserStateDB returns an initialised instance of UserStateDB
 func NewUserStateDB(dbFile string) UserStateDB {
-	return UserStateDB{dbFile: dbFile, statesBucket: "Users"}
+	return UserStateDB{dbFile: dbFile, statesBucket: "users"}
 }
 
 // GetUserState retrieves the stored user state
