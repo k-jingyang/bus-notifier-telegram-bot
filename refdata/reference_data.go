@@ -122,8 +122,8 @@ func (refDataDB *DB) GetBusRoutesByBusService(busServiceNo string) []BusRoute {
 }
 
 // GetBusStopByBusStopCode retrieves information about a bus stop
-func (refDataDB *DB) GetBusStopByBusStopCode(busStopCode string) []BusStop {
-	var busStops []BusStop
+func (refDataDB *DB) GetBusStopByBusStopCode(busStopCode string) BusStop {
+	var busStops BusStop
 
 	db, err := bolt.Open(refDataDB.dbFile, 0600, nil)
 	if err != nil {
