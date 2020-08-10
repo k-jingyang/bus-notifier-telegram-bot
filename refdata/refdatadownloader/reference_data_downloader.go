@@ -23,7 +23,10 @@ func main() {
 
 	log.Println("Downloading from LTA API...")
 	rawBusRoutes := downloadAllBusRoutes()
+	log.Println("Number of downloaded bus routes:", len(rawBusRoutes))
+
 	rawBusStops := downloadAllBusStops()
+	log.Println("Number of downloaded bus stops:", len(rawBusRoutes))
 
 	log.Println("Processing data...")
 	busRoutesInfo := processBusRoutes(rawBusRoutes, rawBusStops)
@@ -43,24 +46,16 @@ func downloadAllBusRoutes() []datamall.BusRoute {
 	apiClient := datamall.NewDefaultClient(ltaToken)
 	allBusRoutes := []datamall.BusRoute{}
 
-	busRoutesChan := make(chan []datamall.BusRoute)
 	stop := false
 	offset := 0
-	const concurrentFetches int = 3
 	for !stop {
-		for i := 0; i < concurrentFetches; i++ {
-			go func() {
-				response, _ := apiClient.GetBusRoutes(offset)
-				busRoutesChan <- response.Value
-			}()
+		log.Println("offset:", offset)
+		response, _ := apiClient.GetBusRoutes(offset)
+		if len(response.Value) == 0 {
+			stop = true
+		} else {
+			allBusRoutes = append(allBusRoutes, response.Value...)
 			offset += 500
-		}
-		for i := 0; i < concurrentFetches; i++ {
-			data := <-busRoutesChan
-			if len(data) == 0 {
-				stop = true
-			}
-			allBusRoutes = append(allBusRoutes, data...)
 		}
 	}
 	return allBusRoutes
@@ -88,24 +83,16 @@ func downloadAllBusStops() []datamall.BusStop {
 	apiClient := datamall.NewDefaultClient(ltaToken)
 	allBusStops := []datamall.BusStop{}
 
-	busStopsChan := make(chan []datamall.BusStop)
 	stop := false
 	offset := 0
-	const concurrentFetches int = 3
 	for !stop {
-		for i := 0; i < concurrentFetches; i++ {
-			go func() {
-				response, _ := apiClient.GetBusStops(offset)
-				busStopsChan <- response.Value
-			}()
+		log.Println("offset:", offset)
+		response, _ := apiClient.GetBusStops(offset)
+		if len(response.Value) == 0 {
+			stop = true
+		} else {
+			allBusStops = append(allBusStops, response.Value...)
 			offset += 500
-		}
-		for i := 0; i < concurrentFetches; i++ {
-			data := <-busStopsChan
-			if len(data) == 0 {
-				stop = true
-			}
-			allBusStops = append(allBusStops, data...)
 		}
 	}
 	return allBusStops
