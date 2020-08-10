@@ -105,7 +105,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 		}
 		transitLinkURL := fmt.Sprintf("https://www.transitlink.com.sg/eservice/eguide/service_route.php?service=%s", storedUserState.BusServiceNo)
 
-		message := fmt.Sprintf("This bus stop is not servied by the bus %s, please try again. \n\nYou can look for the bus stop code at %s, \n\nStop me with /exit", storedUserState.BusServiceNo, transitLinkURL)
+		message := fmt.Sprintf("This bus stop is not serviced by the bus %s, please try again. \n\nYou can look for the bus stop code at %s, \n\nStop me with /exit", storedUserState.BusServiceNo, transitLinkURL)
 		reply := tgbotapi.NewMessage(chatID, message)
 		return registrationReply{replyMessage: reply}
 
