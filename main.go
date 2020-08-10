@@ -2,14 +2,13 @@ package main
 
 import (
 	"bufio"
+	"bus-notifier/refdata"
 	"log"
 	"os"
-	"strconv"
-	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"github.com/joho/godotenv"
-	"github.com/robfig/cron"
+	"github.com/robfig/cron/v3"
 )
 
 const jobDBFile string = "job.db"
@@ -21,15 +20,17 @@ var incomingMessages tgbotapi.UpdatesChannel
 var bot *tgbotapi.BotAPI
 var todayCronner *cron.Cron
 var busServiceLookUp map[string]bool
+var refDataDB refdata.DB
 var storedJobDB JobDB
 var userStateDB UserStateDB
 
 func initTelegramAPI() {
 	botToken := os.Getenv("TELEGRAM_API_TOKEN")
-	bot, err := tgbotapi.NewBotAPI(botToken)
+	newBot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		log.Fatalln(err)
 	}
+	bot = newBot
 	bot.Debug = true
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
@@ -41,10 +42,10 @@ func initTelegramAPI() {
 	}
 }
 
-func initBusServiceLookUp() {
+func initRefData() {
 	busServiceLookUp = make(map[string]bool)
 
-	file, err := os.Open("bus_services.txt")
+	file, err := os.Open("refdata/bus_services.txt")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -57,6 +58,8 @@ func initBusServiceLookUp() {
 	if err := scanner.Err(); err != nil {
 		log.Fatalln(err)
 	}
+
+	refDataDB = refdata.NewRefDataDB("refdata/refdata.db")
 }
 
 func initOutgoingChannels() {
@@ -71,7 +74,7 @@ func main() {
 	}
 
 	initTelegramAPI()
-	initBusServiceLookUp()
+	initRefData()
 	initOutgoingChannels()
 
 	storedJobDB = NewJobDB(jobDBFile)
@@ -79,8 +82,8 @@ func main() {
 
 	// bootstrapJobsForTesting()
 	go func() {
-		for outgoingMesage := range outgoingMessages {
-			bot.Send(outgoingMesage)
+		for outgoingMessage := range outgoingMessages {
+			bot.Send(outgoingMessage)
 		}
 	}()
 	go func() {
@@ -110,15 +113,4 @@ func handleIncomingMessages() {
 			outgoingCallbackResponses <- registrationReply.callbackResponse
 		}
 	}
-}
-
-func bootstrapJobsForTesting() {
-	myChatIDStr := os.Getenv("CHAT_ID")
-	myChatID, _ := strconv.ParseInt(myChatIDStr, 10, 64)
-	timeToExecute := ScheduledTime{17, 20}
-	busInfoJob := BusInfoJob{myChatID, "43411", "506", timeToExecute, time.Monday}
-	storedJobDB.StoreJob(busInfoJob)
-	// addJob(busInfoJob, time.Monday, scheduledTime{9, 45})
-	// addJob(busInfoJob, time.Monday, scheduledTime{9, 50})
-	// addJob(busInfoJob, time.Monday, scheduledTime{10, 00})
 }

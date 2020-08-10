@@ -36,7 +36,8 @@ func (busArrivalInformation busArrivalInformation) toMessageString() string {
 	stringBuilder := strings.Builder{}
 	stringBuilder.WriteString(busArrivalInformation.BusServiceNo)
 	stringBuilder.WriteString(" @ ")
-	stringBuilder.WriteString(busArrivalInformation.BusStopCode)
+	busStopDesc := refDataDB.GetBusStopByBusStopCode(busArrivalInformation.BusStopCode).Description
+	stringBuilder.WriteString(fmt.Sprintf("%s (%s)", busStopDesc, busArrivalInformation.BusStopCode))
 	stringBuilder.WriteString(" | ")
 	if busArrivalInformation.NextBusMinutes == 0 {
 		stringBuilder.WriteString("Arr")

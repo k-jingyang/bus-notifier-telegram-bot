@@ -5,7 +5,7 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
-	"github.com/robfig/cron"
+	"github.com/robfig/cron/v3"
 )
 
 func handleStoredJobs() {
@@ -21,7 +21,7 @@ func handleStoredJobs() {
 
 	// Daily jobs are loaded at midnight, so that cron does not contain all jobs
 	masterCronner := cron.New()
-	masterCronner.AddFunc("*0 0 * * *", func() {
+	masterCronner.AddFunc("0 0 * * *", func() {
 
 		// Debugging
 		log.Print("Old jobs: ")
@@ -55,12 +55,14 @@ func buildCronnerFromJobs(jobs []BusInfoJob, day time.Weekday) *cron.Cron {
 }
 
 func addJobToTodayCronner(cronner *cron.Cron, busInfoJob BusInfoJob) {
+	log.Println("Added", busInfoJob, "job to today's cronner")
 	cronner.AddFunc(busInfoJob.ScheduledTime.ToCronExpression(time.Now().Weekday()), func() {
 		fetchAndPushInfo(busInfoJob)
 	})
 }
 
 func fetchAndPushInfo(busJob BusInfoJob) {
+	log.Println("Fetching information to push")
 	busArrivalInformation := fetchBusArrivalInformation(busJob.BusStopCode, busJob.BusServiceNo)
 	textMessage := busArrivalInformation.toMessageString()
 	sendOutgoingMessage(busJob.ChatID, textMessage)
