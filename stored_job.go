@@ -93,7 +93,7 @@ func (s *JobDB) storeJob(newBusInfoJob BusInfoJob, tx *bolt.Tx) {
 			log.Fatalln(err)
 		}
 
-		log.Println("Adding to existing jobs", append(existingBusInfoJobs, newBusInfoJob))
+		log.Println("Adding to Chat ID to Job bucket", append(existingBusInfoJobs, newBusInfoJob))
 		b.Put(userKey, encBusInfoJobs)
 	}
 
@@ -108,7 +108,8 @@ func (s *JobDB) storeJobForLookup(newBusInfoJob BusInfoJob, tx *bolt.Tx) error {
 	}
 	storedChatIDs := b.Get(dayKey)
 	if storedChatIDs == nil {
-		encChatID, err := json.Marshal(newBusInfoJob.ChatID)
+		chatIDsToStore := []int64{newBusInfoJob.ChatID}
+		encChatID, err := json.Marshal(chatIDsToStore)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -129,7 +130,7 @@ func (s *JobDB) storeJobForLookup(newBusInfoJob BusInfoJob, tx *bolt.Tx) error {
 			log.Fatalln(err)
 		}
 
-		log.Println("Adding to existing jobs", append(encChatIDs))
+		log.Println("Adding to Weekday to ChatID bucket", append(encChatIDs))
 		b.Put(dayKey, encChatIDs)
 	}
 	return nil
@@ -182,8 +183,10 @@ func (s *JobDB) getChatIDsByDay(weekday time.Weekday, tx *bolt.Tx) []int64 {
 	storedChatIDs := b.Get(dayKey)
 
 	decodedChatIDs := []int64{}
-	json.Unmarshal(storedChatIDs, &decodedChatIDs)
-
+	err := json.Unmarshal(storedChatIDs, &decodedChatIDs)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	return decodedChatIDs
 }
 
