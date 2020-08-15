@@ -159,7 +159,7 @@ func handleRegistration(update tgbotapi.Update) registrationReply {
 			dailyBusInfoJob.Weekday = day
 			storedJobDB.StoreJob(dailyBusInfoJob)
 			if day == time.Now().Weekday() {
-				addJobToTodayCronner(todayCronner, dailyBusInfoJob)
+				addJobtoCronner(cronner, dailyBusInfoJob)
 			}
 		}
 

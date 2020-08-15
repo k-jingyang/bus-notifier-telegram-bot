@@ -18,7 +18,8 @@ var outgoingMessages chan tgbotapi.Chattable
 var outgoingCallbackResponses chan tgbotapi.CallbackConfig
 var incomingMessages tgbotapi.UpdatesChannel
 var bot *tgbotapi.BotAPI
-var todayCronner *cron.Cron
+var cronner *cron.Cron
+var refreshCronEntryID cron.EntryID
 var busServiceLookUp map[string]bool
 var refDataDB refdata.DB
 var storedJobDB JobDB
